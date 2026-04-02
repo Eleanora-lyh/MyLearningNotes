@@ -1,3 +1,12 @@
+---
+title: "五、Linux 的文件权限与目录配置"
+date: 2024-04-02T10:00:00+08:00
+draft: false
+tags: ["Linux", "文件权限", "目录配置", "权限管理"]
+categories: ["Linux"]
+description: "详细介绍 Linux 文件权限、用户组管理、目录配置以及权限相关命令的使用"
+---
+
 ## 5.1、使用者和群组
 
 Linux一般将文件可存取的身份分为三个类别，分别是 owner/group/others，且三种身份各有 read/write/execute 等权限
