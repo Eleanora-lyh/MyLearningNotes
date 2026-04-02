@@ -28,7 +28,7 @@ draft: false
 
 ## 联系方式
 
-- GitHub: [YOUR_USERNAME](https://github.com/YOUR_USERNAME)
+- GitHub: [Eleanora-lyh](https://github.com/Eleanora-lyh)
 - Email: your.email@example.com
 
 ---
