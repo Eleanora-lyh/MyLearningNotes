@@ -1,0 +1,28 @@
+# Hugo 生成的文件
+/public/
+/resources/_gen/
+/assets/jsconfig.json
+hugo_stats.json
+
+# 临时文件
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Node modules
+node_modules/
+package-lock.json
+
+# 日志文件
+*.log
+
+# 操作系统文件
+.DS_Store
+.AppleDouble
+.LSOverride

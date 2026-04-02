@@ -1,0 +1,64 @@
+baseURL = 'https://github.com/Eleanora-lyh/LearningNotes/'
+languageCode = 'zh-cn'
+title = 'My Learning Notes'
+theme = 'PaperMod'
+
+[params]
+  description = "个人学习笔记博客"
+  author = "Eleanora"
+  
+  # 启用搜索功能
+  [params.homeInfoParams]
+    Title = "欢迎来到我的学习笔记 👋"
+    Content = "记录学习过程中的点滴"
+
+  # 社交链接
+  [[params.socialIcons]]
+    name = "github"
+    url = "https://github.com/Eleanora-lyh"
+
+  # 显示代码复制按钮
+  [params.assets]
+    disableHLJS = false
+
+# 菜单配置
+[[menu.main]]
+  name = "首页"
+  url = "/"
+  weight = 1
+
+[[menu.main]]
+  name = "文章"
+  url = "/posts/"
+  weight = 2
+
+[[menu.main]]
+  name = "归档"
+  url = "/archives/"
+  weight = 3
+
+[[menu.main]]
+  name = "标签"
+  url = "/tags/"
+  weight = 4
+
+[[menu.main]]
+  name = "关于"
+  url = "/about/"
+  weight = 5
+
+# 分类和标签
+[taxonomies]
+  category = "categories"
+  tag = "tags"
+
+# 输出格式
+[outputs]
+  home = ["HTML", "RSS", "JSON"]
+
+# Markdown 配置
+[markup]
+  [markup.highlight]
+    style = "monokai"
+    lineNos = true
+    lineNumbersInTable = true
