@@ -15,7 +15,7 @@
 1. **克隆仓库**
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/MyLearningNotes.git
+git clone https://github.com/Eleanora-lyh/MyLearningNotes.git
 cd MyLearningNotes
 ```
 
@@ -71,11 +71,11 @@ MyLearningNotes/
 编辑 [`hugo.toml`](hugo.toml:1) 文件：
 
 ```toml
-baseURL = 'https://YOUR_USERNAME.github.io/MyLearningNotes/'
+baseURL = 'https://Eleanora-lyh.github.io/MyLearningNotes/'
 title = 'My Learning Notes'
 ```
 
-将 `YOUR_USERNAME` 替换为你的 GitHub 用户名。
+将 `Eleanora-lyh` 替换为你的 GitHub 用户名。
 
 ### 修改作者信息
 
@@ -103,7 +103,7 @@ git init
 git add .
 git commit -m "Initial commit: Hugo blog setup"
 git branch -M main
-git remote add origin https://github.com/YOUR_USERNAME/MyLearningNotes.git
+git remote add origin https://github.com/Eleanora-lyh/MyLearningNotes.git
 git push -u origin main
 ```
 
@@ -117,7 +117,7 @@ git push -u origin main
 
 推送代码后，GitHub Actions 会自动运行并部署博客。你可以在 **Actions** 标签页查看部署进度。
 
-部署完成后，访问：`https://YOUR_USERNAME.github.io/MyLearningNotes/`
+部署完成后，访问：`https://Eleanora-lyh.github.io/MyLearningNotes/`
 
 ## ✍️ 写文章
 

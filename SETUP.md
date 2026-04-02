@@ -55,10 +55,10 @@ hugo new posts/my-new-post.md
 
 ### 步骤 1: 修改配置
 
-1. 编辑 `hugo.toml`，将以下内容中的 `YOUR_USERNAME` 替换为你的 GitHub 用户名：
+1. 编辑 `hugo.toml`，将以下内容中的 `Eleanora-lyh` 替换为你的 GitHub 用户名：
 
 ```toml
-baseURL = 'https://YOUR_USERNAME.github.io/MyLearningNotes/'
+baseURL = 'https://Eleanora-lyh.github.io/MyLearningNotes/'
 ```
 
 2. 更新作者信息和社交链接（在 `hugo.toml` 中）
@@ -89,8 +89,8 @@ git commit -m "Initial commit: Hugo blog setup"
 # 设置主分支
 git branch -M main
 
-# 添加远程仓库（替换 YOUR_USERNAME）
-git remote add origin https://github.com/YOUR_USERNAME/MyLearningNotes.git
+# 添加远程仓库（替换 Eleanora-lyh）
+git remote add origin https://github.com/Eleanora-lyh/MyLearningNotes.git
 
 # 推送到 GitHub
 git push -u origin main
@@ -98,7 +98,7 @@ git push -u origin main
 
 ### 步骤 4: 配置 GitHub Pages
 
-1. 访问你的仓库：`https://github.com/YOUR_USERNAME/MyLearningNotes`
+1. 访问你的仓库：`https://github.com/Eleanora-lyh/MyLearningNotes`
 2. 点击 **Settings** 标签
 3. 在左侧菜单中点击 **Pages**
 4. 在 **Source** 下拉菜单中，选择 **GitHub Actions**
@@ -108,7 +108,7 @@ git push -u origin main
 
 1. 访问 **Actions** 标签查看工作流运行状态
 2. 等待部署完成（通常需要 1-2 分钟）
-3. 部署成功后，访问：`https://YOUR_USERNAME.github.io/MyLearningNotes/`
+3. 部署成功后，访问：`https://Eleanora-lyh.github.io/MyLearningNotes/`
 
 ---
 
