@@ -18,6 +18,7 @@ enableGitInfo = true  # 设为 true 可从 Git 提交历史获取日期
 [params]
   description = "个人学习笔记博客"
   author = "Eleanora"
+  comments = true  # 全局启用评论
   
   # 启用搜索功能
   [params.homeInfoParams]
@@ -32,6 +33,23 @@ enableGitInfo = true  # 设为 true 可从 Git 提交历史获取日期
   # 显示代码复制按钮
   [params.assets]
     disableHLJS = false
+
+  # Giscus 评论系统配置
+  # 需要先在 GitHub 仓库启用 Discussions 功能
+  # 访问 https://giscus.app/zh-CN 获取配置参数
+  [params.giscus]
+    repo = "Eleanora-lyh/LearningNotes"
+    repoId = "R_kgDOR3zQkg"  # 替换为你的 repo ID
+    category = "Announcements"
+    categoryId = "DIC_kwDOR3zQks4C57x0"  # 替换为你的 category ID
+    mapping = "pathname"
+    theme = "preferred_color_scheme"
+    lang = "zh-CN"
+    crossorigin = "anonymous"
+    reactionsEnabled = "1"
+    emitMetadata = "0"
+    inputPosition = "top"
+    loading = "lazy"
 
 # 菜单配置
 [[menu.main]]
