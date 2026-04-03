@@ -1,4 +1,4 @@
-baseURL = 'https://github.com/Eleanora-lyh/LearningNotes/'
+baseURL = 'https://eleanora-lyh.github.io/MyLearningNotes/'
 languageCode = 'zh-cn'
 title = 'My Learning Notes'
 theme = 'PaperMod'
@@ -20,6 +20,17 @@ enableGitInfo = true  # 设为 true 可从 Git 提交历史获取日期
   author = "Eleanora"
   comments = true  # 全局启用评论
   
+  # Google Analytics 配置
+  # 请将下面的 G-XXXXXXXXXX 替换为你的 Google Analytics Measurement ID
+  # 获取地址: https://analytics.google.com/
+  googleAnalytics = "G-MV297YCMCZ"  # 例如: "G-XXXXXXXXXX"
+  
+  # 文章页面显示浏览量
+  ShowPageViews = true
+  
+  # 在页面顶部显示站点统计（部署后才显示真实数据）
+  ShowSiteStats = true
+  
   # 启用搜索功能
   [params.homeInfoParams]
     Title = "欢迎来到我的学习笔记 👋"
@@ -38,11 +49,11 @@ enableGitInfo = true  # 设为 true 可从 Git 提交历史获取日期
   # 需要先在 GitHub 仓库启用 Discussions 功能
   # 访问 https://giscus.app/zh-CN 获取配置参数
   [params.giscus]
-    repo = "Eleanora-lyh/LearningNotes"
+    repo = "Eleanora-lyh/MyLearningNotes"
     repoId = "R_kgDOR3zQkg"  # 替换为你的 repo ID
     category = "Announcements"
     categoryId = "DIC_kwDOR3zQks4C57x0"  # 替换为你的 category ID
-    mapping = "pathname"
+    mapping = "title"  # 使用文章标题而非 URL 路径，避免中文乱码
     theme = "preferred_color_scheme"
     lang = "zh-CN"
     crossorigin = "anonymous"
