@@ -2,6 +2,18 @@ baseURL = 'https://github.com/Eleanora-lyh/LearningNotes/'
 languageCode = 'zh-cn'
 title = 'My Learning Notes'
 theme = 'PaperMod'
+defaultContentLanguage = "zh-cn"
+timeZone = "Asia/Shanghai"
+enableEmoji = true
+
+# 日期配置：自动从文件系统获取日期
+enableGitInfo = true  # 设为 true 可从 Git 提交历史获取日期
+
+[frontmatter]
+  date = [":git", ":default", ":fileModTime"]  # date 优先使用 Git 首次提交
+  lastmod = [":git", ":fileModTime", ":default"]  # lastmod 使用最后提交时间
+
+  publishDate = [":default"]
 
 [params]
   description = "个人学习笔记博客"
@@ -37,15 +49,21 @@ theme = 'PaperMod'
   url = "/archives/"
   weight = 3
 
+
+[[menu.main]]
+  name = "分类"
+  url = "/categories/"
+  weight = 4
+
 [[menu.main]]
   name = "标签"
   url = "/tags/"
-  weight = 4
+  weight = 5
 
 [[menu.main]]
   name = "关于"
   url = "/about/"
-  weight = 5
+  weight = 6
 
 # 分类和标签
 [taxonomies]
