@@ -20,6 +20,14 @@ enableGitInfo = true  # 设为 true 可从 Git 提交历史获取日期
   author = "Eleanora"
   comments = true  # 全局启用评论
   
+  # 目录配置
+  ShowToc = true  # 显示文章目录
+  TocOpen = true  # 默认展开目录
+  
+  # 显示阅读时间
+  ShowReadingTime = true  # 显示预计阅读时间
+  ShowWordCount = true  # 显示字数统计
+  
   # Google Analytics 配置
   # 请将下面的 G-XXXXXXXXXX 替换为你的 Google Analytics Measurement ID
   # 获取地址: https://analytics.google.com/
