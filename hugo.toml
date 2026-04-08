@@ -117,3 +117,12 @@ enableGitInfo = true  # 设为 true 可从 Git 提交历史获取日期
     style = "monokai"
     lineNos = true
     lineNumbersInTable = true
+  
+  [markup.goldmark]
+    [markup.goldmark.renderer]
+      unsafe = true  # 允许渲染原始HTML，解决表格显示问题
+  
+  [markup.tableOfContents]
+    startLevel = 2  # 从 H2 开始生成目录
+    endLevel = 4    # 到 H4 结束
+    ordered = false # 使用无序列表
