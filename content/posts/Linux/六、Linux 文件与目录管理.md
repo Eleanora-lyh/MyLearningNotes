@@ -572,7 +572,7 @@ chmod g+s,o+t test
 
 - others --t
 
-#### 6.4.4 文件类型 file
+### 6.4.4 文件类型 file
 
 某个文件的基本数据，例如是属于 ASCII 或者是 data 文件，或者是 binary ， 且其中有没有使用到动态函数库 （share library） 等等的信息
 
@@ -583,7 +583,7 @@ chmod g+s,o+t test
 
 ## 6.5 指令与文件的搜索
 
-#### 6.5.1 查找命令的完整文件名 which
+### 6.5.1 查找命令的完整文件名 which
 
 ```bash
 [root@study ~]# which [-a] command
@@ -593,7 +593,7 @@ chmod g+s,o+t test
 
 因为 history 是“bash 内置的指令”啦！ 但是 which 默认是找 PATH内所规范的目录，所以当然一定找不到的
 
-#### 6.5.1 查找指定文件的路径 whereis locate find
+### 6.5.1 查找指定文件的路径 whereis locate find
 
 **where**  只找系统中某些特定目录下面的文件，所以会比find快
 

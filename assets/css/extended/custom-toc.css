@@ -1,0 +1,158 @@
+/* 自定义目录样式 - 左侧固定显示 */
+
+/* 在大屏幕上将目录固定在左侧 */
+@media screen and (min-width: 1400px) {
+    /* 确保body不会裁剪固定元素 */
+    body {
+        overflow-x: visible !important;
+    }
+    
+    /* 隐藏原位置的目录，只显示固定的 */
+    .post-single .toc {
+        position: fixed;
+        left: 2%;
+        top: 100px;
+        width: 280px;
+        max-height: calc(100vh - 120px);
+        overflow-y: auto;
+        padding: 1rem 1rem 1rem 0.5rem;
+        background: var(--entry);
+        border-radius: 8px;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        z-index: 999;
+    }
+    
+    /* 隐藏 Table of Contents 标题 */
+    .post-single .toc summary {
+        display: none;
+    }
+    
+    /* 目录默认展开 */
+    .post-single .toc details {
+        open: true;
+    }
+    
+    .post-single .toc details[open] .inner {
+        display: block;
+    }
+
+    /* 确保主内容区域有足够的宽度且居中 */
+    .main {
+        max-width: 900px;
+        margin: 0 auto;
+    }
+}
+
+/* 超大屏幕优化 */
+@media screen and (min-width: 1800px) {
+    .post-single .toc {
+        left: 3%;
+        width: 300px;
+    }
+}
+
+/* 中大屏幕 - 目录在内容上方 */
+@media screen and (min-width: 768px) and (max-width: 1199px) {
+    .toc {
+        margin-bottom: 2rem;
+        padding: 1.5rem;
+        background: var(--entry);
+        border-radius: 8px;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    }
+}
+
+/* 小屏幕 - 紧凑的目录样式 */
+@media screen and (max-width: 767px) {
+    .toc {
+        margin-bottom: 1.5rem;
+        padding: 1rem;
+        background: var(--entry);
+        border-radius: 6px;
+    }
+}
+
+/* 通用目录样式优化 */
+.toc details {
+    border: none;
+}
+
+.toc summary {
+    font-weight: 600;
+    font-size: 1.1rem;
+    padding: 0.5rem;
+    cursor: pointer;
+    color: var(--primary);
+    list-style: none;
+}
+
+.toc summary::-webkit-details-marker {
+    display: none;
+}
+
+.toc .inner {
+    padding: 0.5rem 0;
+}
+
+.toc ul {
+    margin: 0;
+    padding-left: 0.3rem;
+}
+
+.toc li {
+    margin: 0.4rem 0;
+    list-style: none;
+}
+
+.toc a {
+    display: block;
+    padding: 0.4rem 0.3rem 0.4rem 0.2rem;
+    border-radius: 4px;
+    transition: all 0.2s ease;
+    color: var(--content);
+    text-decoration: none;
+    font-size: 0.95rem;
+    line-height: 1.5;
+}
+
+.toc a:hover {
+    background: var(--theme);
+    color: var(--primary);
+    transform: translateX(3px);
+}
+
+/* 滚动条美化 */
+.toc::-webkit-scrollbar {
+    width: 6px;
+}
+
+.toc::-webkit-scrollbar-track {
+    background: var(--code-bg);
+    border-radius: 3px;
+}
+
+.toc::-webkit-scrollbar-thumb {
+    background: var(--border);
+    border-radius: 3px;
+}
+
+.toc::-webkit-scrollbar-thumb:hover {
+    background: var(--primary);
+}
+
+/* 阅读时间和字数统计的样式优化 */
+.post-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    align-items: center;
+    color: var(--secondary);
+    font-size: 0.9rem;
+    margin-bottom: 1rem;
+}
+
+.post-meta > * {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+}
