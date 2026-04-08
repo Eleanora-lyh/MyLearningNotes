@@ -12,34 +12,157 @@
         position: fixed;
         left: 2%;
         top: 100px;
-        width: 280px;
+        width: 320px;
         max-height: calc(100vh - 120px);
         overflow-y: auto;
-        padding: 1rem 1rem 1rem 0.5rem;
+        padding: 1rem 2rem 1rem 0rem;
         background: var(--entry);
         border-radius: 8px;
         box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
         z-index: 999;
+        transition: transform 0.3s ease, width 0.3s ease;
     }
     
-    /* 隐藏 Table of Contents 标题 */
-    .post-single .toc summary {
+    /* 收起状态 - TOC完全滑出屏幕，只留toggle按钮 */
+    .post-single .toc.collapsed {
+        transform: translateX(calc(-100% + 40px));
+        width: 320px;
+        padding: 0;
+        overflow: visible;
+    }
+    
+    .post-single .toc.collapsed .inner {
         display: none;
     }
     
-    /* 目录默认展开 */
-    .post-single .toc details {
-        open: true;
+    /* 切换按钮样式 - 放在右侧顶部 */
+    .post-single .toc summary {
+        position: absolute;
+        top: 0.5rem;
+        right: 0.5rem;
+        width: 36px;
+        height: 36px;
+        display: flex !important;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        color: var(--primary);
+        background: var(--theme);
+        border-radius: 6px;
+        border: 1px solid var(--border);
+        z-index: 1001;
+        font-size: 1.1rem;
+        transition: background 0.2s ease, transform 0.2s ease;
     }
     
-    .post-single .toc details[open] .inner {
+    .post-single .toc summary:hover {
+        background: var(--border);
+        transform: scale(1.05);
+    }
+    
+    /* 展开时的提示文字 - 显示在右侧 */
+    .post-single .toc details[open] summary::after {
+        content: "收起目录";
+        position: absolute;
+        left: calc(100% + 8px);
+        top: 50%;
+        transform: translateY(-50%);
+        background: var(--theme);
+        color: var(--content);
+        padding: 0.4rem 0.8rem;
+        border-radius: 4px;
+        font-size: 0.85rem;
+        white-space: nowrap;
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.2s ease, left 0.2s ease;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+        border: 1px solid var(--border);
+    }
+    
+    .post-single .toc details[open] summary:hover::after {
+        opacity: 1;
+        left: calc(100% + 12px);
+    }
+    
+    /* 收起时的提示文字 - 显示在右侧 */
+    .post-single .toc details:not([open]) summary::after {
+        content: "展开目录";
+        position: absolute;
+        left: calc(100% + 8px);
+        top: 50%;
+        transform: translateY(-50%);
+        background: var(--theme);
+        color: var(--content);
+        padding: 0.4rem 0.8rem;
+        border-radius: 4px;
+        font-size: 0.85rem;
+        white-space: nowrap;
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.2s ease, left 0.2s ease;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+        border: 1px solid var(--border);
+    }
+    
+    .post-single .toc details:not([open]) summary:hover::after {
+        opacity: 1;
+        left: calc(100% + 12px);
+    }
+    
+    /* 收起状态下的按钮位置 */
+    .post-single .toc.collapsed summary {
+        position: absolute;
+        right: 0;
+        top: 0;
+        margin: 0;
+        border-radius: 0 8px 8px 0;
+    }
+    
+    .post-single .toc summary::-webkit-details-marker {
+        display: none;
+    }
+    
+    /* 隐藏文字，只显示图标 */
+    .post-single .toc summary .details {
+        display: none;
+    }
+    
+    /* 切换图标 */
+    .post-single .toc summary::before {
+        content: "◀";
         display: block;
+        transition: transform 0.2s ease;
+    }
+    
+    .post-single .toc details:not([open]) summary::before {
+        content: "▶";
     }
 
-    /* 确保主内容区域有足够的宽度且居中 */
+    /* 确保主内容区域稍微偏右 */
     .main {
-        max-width: 900px;
-        margin: 0 auto;
+        max-width: 1100px;
+        margin-left: 12%;
+        margin-right: auto;
+        transition: max-width 0.3s ease, margin-left 0.3s ease, margin-right 0.3s ease, padding 0.3s ease;
+    }
+    
+    /* 当TOC收起时，内容区域扩展并完全居中 */
+    .main.toc-hidden {
+        max-width: 1400px;
+        margin-left: auto;
+        margin-right: auto;
+        padding-left: 2%;
+        padding-right: 2%;
+    }
+    
+    .post-single {
+        max-width: 1100px;
+        transition: max-width 0.3s ease;
+    }
+    
+    .main.toc-hidden .post-single {
+        max-width: 1400px;
     }
 }
 
@@ -48,6 +171,27 @@
     .post-single .toc {
         left: 3%;
         width: 300px;
+    }
+    
+    .main {
+        max-width: 1300px;
+        margin-left: 20%;
+        margin-right: auto;
+    }
+    
+    .main.toc-hidden {
+        max-width: 1600px;
+        margin-right: auto;
+        padding-left: 3%;
+        padding-right: 3%;
+    }
+    
+    .post-single {
+        max-width: 1300px;
+    }
+    
+    .main.toc-hidden .post-single {
+        max-width: 1600px;
     }
 }
 
@@ -79,25 +223,30 @@
 
 .toc summary {
     font-weight: 600;
-    font-size: 1.1rem;
+    font-size: 1rem;
     padding: 0.5rem;
     cursor: pointer;
     color: var(--primary);
     list-style: none;
+    user-select: none;
 }
 
 .toc summary::-webkit-details-marker {
     display: none;
 }
 
+.toc summary:hover {
+    background: var(--theme);
+}
+
 .toc .inner {
     padding: 0.5rem 0;
 }
 
-.toc ul {
+/* .toc ul {
     margin: 0;
-    padding-left: 0.3rem;
-}
+    padding-left: 0rem;
+} */
 
 .toc li {
     margin: 0.4rem 0;
@@ -106,7 +255,7 @@
 
 .toc a {
     display: block;
-    padding: 0.4rem 0.3rem 0.4rem 0.2rem;
+    padding: 0.4rem 0rem 0.4rem 0.1rem;
     border-radius: 4px;
     transition: all 0.2s ease;
     color: var(--content);
