@@ -1,3 +1,11 @@
+```yaml
+title: "Hive 分区与分桶"
+date: 2026-05-13T10:00:00+08:00
+draft: false
+tags: ["Hive", "Hadoop"]
+categories: ["Hive"]
+```
+
 ## 一、不分区+不分桶
 
 假设两张表分别为orders、users（后面直接简称为A、B表）。执行普通JOIN（无分区、无分桶）会发生什么？
@@ -75,7 +83,7 @@ WHERE o.order_tim
 
 每个 Map 任务只能读取自己机器上的一个 block（数据本地性原则）：
 
-```
+```text
 Map任务1（在机器1上）：读 orders 的 block_001
   → 看到了 user_id = 1001, 2003, 1001, 5008 ...
 
@@ -92,7 +100,7 @@ Map任务800（在机器30上）：读 users 的 block_012
 
 Shuffle 的作用：**按 join key 对所有数据重新分组,把相同 key 的数据搬运到同一个 Reducer**。
 
-```
+```text
 Shuffle 规则： reducer_id = hash(user_id) % R
 
 假设 R=3：
@@ -218,7 +226,7 @@ WHERE o.dt = '2024-01-01';  -- 关键：使用分区条件
 
 Shuffle 的作用：按 join key 对所有数据重新分组,把相同 key 的数据搬运到同一个 Reducer。
 
-```
+```text
 Shuffle 规则： reducer_id = hash(user_id) % R
 
 假设 R=3：
@@ -233,7 +241,7 @@ Shuffle 规则： reducer_id = hash(user_id) % R
 
 到了 Reducer0，它收到的所有 `user_id=1001` 的记录长这样：
 
-```
+```text
 user_id=1001, order_id=8001, amount=99.0
 user_id=1001, order_id=8002, amount=50.0
 user_id=1001, order_id=8003, amount=120.0
@@ -720,7 +728,7 @@ Map阶段：
 
 **开了之后的执行变化**：
 
-```
+```text
 Before (Common Join):  Map → Shuffle → Reduce ❌
 After  (Bucket MJ):    Map (桶对桶直接Join) → 输出 ✅
 ```
@@ -807,7 +815,7 @@ CLUSTERED BY (user_id) SORTED BY (user_id) INTO 32 BUCKETS
 
 **开启后的写入行为**：
 
-```
+```text
 桶0文件内容（开启sorting）：
   user_id=1001, ...
   user_id=1003, ...
@@ -825,7 +833,7 @@ CLUSTERED BY (user_id) SORTED BY (user_id) INTO 32 BUCKETS
 
 ### 四个参数的协作关系图
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────┐
 │                        【写入侧】                            │
 │   建表：CLUSTERED BY (user_id) SORTED BY (user_id) INTO 32  │
