@@ -1,3 +1,12 @@
+---
+title: "3、分布式计算 MapReduce & YARN"
+date: 2026-04-08T21:47:41+08:00
+draft: false
+tags: ["Hadoop", "MapReduce", "YARN", "分布式计算"]
+categories: ["Hadoop"]
+description: "介绍 MapReduce 和 YARN 的核心概念、YARN 集群部署配置以及提交 MapReduce 任务到 YARN 的示例（wordcount、pi）"
+---
+
 ## 3.1、分布式概述
 
 分布式数据计算分为两种

@@ -1,3 +1,12 @@
+---
+title: "2、分布式存储 HDFS"
+date: 2026-03-25T22:30:47+08:00
+draft: false
+tags: ["Hadoop", "HDFS", "分布式存储", "NFS"]
+categories: ["Hadoop"]
+description: "Hadoop HDFS 集群部署、Shell 操作、Windows 连接 HDFS、存储原理（块、副本、NameNode 元数据、读写流程）等系统性介绍"
+---
+
 **Hadoop 是一个整体生态 / 框架，HDFS 和 YARN 是它里面两个核心组件：**
 
 - **HDFS = 分布式存储** Hadoop Distributed File System（存数据）
@@ -104,11 +113,11 @@ Last login: Thu Mar 12 21:42:54 CST 2026 on pts/0
 $HADOOP_HOME/sbin/stop-dfs.sh(hadoop-daemon.sh)
 ```
 
-|            | 手动逐个进程启停(控制所在机器的进程启停)                     | shell脚本一键启停<br />(配置好机器之间的SSH免密登录和workers文件) |
-| ---------- | ------------------------------------------------------------ | ------------------------------------------------------------ |
-| HDFS集群   | # hadoop2.x版本命令($HADOOP_HOME/sbin/hadoop-daemon.sh)<br />`hadoop-daemon.sh start | status                                                       |
-| YARN集群   | # yarn2.x版本命令<br />`yarn-daemon.sh start                 | stop resourcemanager                                         |
-| Hadoop集群 |                                                              | `start-all.sh`<br />`stop-all.sh`<br />一个命令代替start-dfs.sh和start-yarn.sh |
+|          | 手动逐个进程启停(控制所在机器的进程启停)                                                            | shell脚本一键启停<br />(配置好机器之间的SSH免密登录和workers文件)                            |
+| -------- | -------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| HDFS集群   | # hadoop2.x版本命令($HADOOP_HOME/sbin/hadoop-daemon.sh)<br />`hadoop-daemon.sh start | status                                                                  |
+| YARN集群   | # yarn2.x版本命令<br />`yarn-daemon.sh start                                         | stop resourcemanager                                                    |
+| Hadoop集群 |                                                                                  | `start-all.sh`<br />`stop-all.sh`<br />一个命令代替start-dfs.sh和start-yarn.sh |
 
 - 启动完毕之后可以使用`jps命令`查看进程是否启动成功
   
@@ -568,7 +577,7 @@ mount -o anon \\192.168.88.101\ /hdfs Z:
 
 打开计算机，可以看到 NFS服务器 以磁盘的形式显示
 
-##  四、HDFS的存储原理
+## 四、HDFS的存储原理
 
 文件在存储到HDFS的集群前会被拆分为Block块，HDFS的最小储存单位(每个256M,可改)。并通过副本冗余防止数据丢失
 
@@ -613,44 +622,43 @@ FSCK started by hadoop (auth:SIMPLE) from /192.168.88.101 for path /user/hadoop/
 
 
 Status: HEALTHY
- Number of data-nodes:	3
- Number of racks:		1
- Total dirs:			0
- Total symlinks:		0
+ Number of data-nodes:    3
+ Number of racks:        1
+ Total dirs:            0
+ Total symlinks:        0
 
 Replicated Blocks:
- Total size:	42 B
- Total files:	1
- Total blocks (validated):	1 (avg. block size 42 B)
- Minimally replicated blocks:	1 (100.0 %)
- Over-replicated blocks:	0 (0.0 %)
- Under-replicated blocks:	0 (0.0 %)
- Mis-replicated blocks:		0 (0.0 %)
- Default replication factor:	3
- Average block replication:	3.0
- Missing blocks:		0
- Corrupt blocks:		0
- Missing replicas:		0 (0.0 %)
- Blocks queued for replication:	0
+ Total size:    42 B
+ Total files:    1
+ Total blocks (validated):    1 (avg. block size 42 B)
+ Minimally replicated blocks:    1 (100.0 %)
+ Over-replicated blocks:    0 (0.0 %)
+ Under-replicated blocks:    0 (0.0 %)
+ Mis-replicated blocks:        0 (0.0 %)
+ Default replication factor:    3
+ Average block replication:    3.0
+ Missing blocks:        0
+ Corrupt blocks:        0
+ Missing replicas:        0 (0.0 %)
+ Blocks queued for replication:    0
 
 Erasure Coded Block Groups:
- Total size:	0 B
- Total files:	0
- Total block groups (validated):	0
- Minimally erasure-coded block groups:	0
- Over-erasure-coded block groups:	0
- Under-erasure-coded block groups:	0
- Unsatisfactory placement block groups:	0
- Average block group size:	0.0
- Missing block groups:		0
- Corrupt block groups:		0
- Missing internal blocks:	0
- Blocks queued for replication:	0
+ Total size:    0 B
+ Total files:    0
+ Total block groups (validated):    0
+ Minimally erasure-coded block groups:    0
+ Over-erasure-coded block groups:    0
+ Under-erasure-coded block groups:    0
+ Unsatisfactory placement block groups:    0
+ Average block group size:    0.0
+ Missing block groups:        0
+ Corrupt block groups:        0
+ Missing internal blocks:    0
+ Blocks queued for replication:    0
 FSCK ended at Mon Mar 30 21:19:48 CST 2026 in 3 milliseconds
 
 
 The filesystem under path '/user/hadoop/new.txt' is HEALTHY
-
 ```
 
 验证了文件有多个副本、文件被分成多个块存储，每个块256M
@@ -683,12 +691,12 @@ vim /export/server/hadoop/etc/hadoop/hdfs-site.xml
 ```
 
 的
+
 ```xml
 <property>
         <name>dfs.namenode.name.dir</name>
         <value>/data/nn</value>
     </property>
-
 ```
 
 进入数据目录current路径后，即可看到edits和FSImage
@@ -706,7 +714,6 @@ total 5244
 -rw-rw-r-- 1 1001 1001      62 Mar 30 21:47 fsimage_0000000000000000123.md5
 -rw-rw-r-- 1 1001 1001       4 Mar 30 21:47 seen_txid
 -rw-rw-r-- 1 1001 1001     217 Mar 27 21:00 VERSION
-
 ```
 
 ### 4.3 SecondaryNamenode 负责元数据合并
@@ -716,16 +723,14 @@ total 5244
 - 检查是否达到条件：`dfs.namenode.checkpoint.check.period` 默认60s
 
 - 以下任意一个条件满足则发生
-
+  
   - `dfs.namenode.checkpoint.period`，默认3600s(1h)
-
+  
   - `dfs.namenode.checkpoint.txns`，默认100w次事务
 
 ### 4.4 HDFS数据读写流
 
 ![image-20260331074609575](./assets/image-20260331074609575.png)
-
-
 
 ![image-20260331074807481](./assets/image-20260331074807481.png)
 
