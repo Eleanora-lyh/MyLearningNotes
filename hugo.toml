@@ -7,7 +7,7 @@ timeZone = "Asia/Shanghai"
 enableEmoji = true
 
 # 日期配置：自动从文件系统获取日期
-enableGitInfo = true  # 设为 true 可从 Git 提交历史获取日期
+# enableGitInfo = true  # 设为 true 可从 Git 提交历史获取日期
 
 [frontmatter]
   date = [":git", ":default", ":fileModTime"]  # date 优先使用 Git 首次提交
