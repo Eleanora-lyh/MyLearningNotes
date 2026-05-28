@@ -187,7 +187,7 @@ MapReduce 是一个**严格的两段式**计算模型：`Map → Shuffle → Red
 3. **Merge 归并**：所有 Map 端数据拉取完成后，对磁盘上的多个临时文件进行**多路归并**，形成一个有序的输入流。
 4. **Reduce 计算**：归并后的数据**作为 reduce() 函数的数据源**，按 key 分组喂给业务逻辑，最终结果**写入 HDFS**。
 
-> 📌 **核心特征**：整个过程中数据要经历 **Map 本地磁盘 → Reduce 内存 → Reduce 本地磁盘 → HDFS** 多次落盘，I/O 是性能瓶颈的根源。
+> 📌 **核心特征**：整个过程中数据要经历 **HDFS输入文件 → Map内存溢出到本地磁盘 → Reduce读取本地文件到内存 → Reduce内存溢出到多个本地磁盘→ 合并到一个本地文件** 多次落盘，I/O 是性能瓶颈的根源。也就是为什么后面出现了Tez执行引擎
 
 ### ② 多 Job 串行的痛点
 
@@ -224,9 +224,53 @@ GROUP BY a.x;
 
 **Apache Tez 是面向大规模数据处理、支持 DAG(Directed Acyclic Graph) 作业的通用计算框架**，**直接源自 MapReduce**——可以理解为"MR 的进化版"。它**完全兼容 MR 的能力**（Map/Reduce 语义、Shuffle 语义、容错语义），但在此之上提供了**更灵活的作业表达模型**，允许多种作业形式在同一集群内统一调度。
 
-- **MapReduce的固定模型**：强制每个作业必须按`Map -> Shuffle -> Reduce`的固定两阶段执行。即使逻辑上不需要Reduce阶段（如过滤数据），也必须走完这个流程，导致冗余的I/O和调度开销。
+- **MapReduce的固定模型**：一旦这个 Job 需要跨分区重分布数据，执行模式必须按`Map -> Shuffle/Sort -> Reduce`的固定三阶段执行，导致冗余的I/O和调度开销。
+  
+  - 注意：这里强调的是**一旦这个 Job 需要跨分区重分布数据**，如对于 group by、join、distinct、全局排序等需要按 key 汇聚数据的任务。MapReduce 对这类复杂多阶段任务的表达能力较弱，**多个阶段往往需要拆成多个 Job**，通常需要经过 Shuffle/Sort，再由 Reduce 处理，并**通过 HDFS 落盘（HDFS落盘=HDFS->本地磁盘）传递中间结果，从而带来额外 I/O 和调度开销**。
+  
+  - 并不是所有任务都必须有 Reduce，也不是所有场景都必须发生完整 Shuffle。Map-only 任务可以没有 Shuffle；如果数据已经按计算 key 做了合适的分区/分桶/排序，执行引擎可能减少或避免某些 Shuffle。
 
-- **Tez的DAG模型**：允许你根据实际数据处理逻辑，自由定义任务节点（可以是Map、Reduce或其他处理器）和它们的依赖边。例如，一个作业可以是 `Map -> Reduce`，也可以是 `Map -> Map -> Reduce`，甚至是多个Map的输出汇合到一个Reduce。
+- **Directed Acyclic Graph 有向无环图**：在计算引擎里，DAG 表示一个作业中，各个计算步骤之间的依赖关系图。比如 SQL：
+  
+  ```sql
+  SELECT user_id, COUNT(*)
+  FROM logs
+  WHERE dt = '2026-05-27'
+    AND event_type = 'click'
+  GROUP BY user_id;
+  ```
+  
+  - 传统 MapReduce 更像这样：
+    
+    ```sql
+    Map：
+    
+    各个Map（读 logs、过滤 dt、过滤 event_type）
+    → 各个Map生成中间结果 
+    → Map将中间结果写入本地磁盘 
+    
+    Shuffle：
+    按照user_id进行分区，相同user_id分配到同一个 Reducer
+    → 各个Reducer 通过网络从各个 Mapper 所在节点拉取对应分区的中间结果，合并结果
+    
+    Reduce：
+    Reducer 对相同 `city` 的数据做最终聚合，例如 `COUNT(*)`
+    
+    Output：
+    Reduce 结果直接写入 HDFS。
+    ```
+  
+  - DAG 引擎会先看到完整流程，再切分执行阶段分析，而不是每一步都机械地变成一个 MR Job（例如：哪些操作可以合并？哪里必须 Shuffle？哪里可以 pipeline？哪里可以避免落盘？哪里可以并行？）
+    
+    ```sql
+    Read → Filter → Partial Count
+                            ↓
+                         Shuffle
+                            ↓
+                    Final Count → Outputort
+    ```
+
+- **Tez的DAG模型**：允许你根据实际数据处理逻辑，自由定义任务节点（可以是Map、Reduce或其他处理器）和它们的依赖边。DAG 引擎相比 MapReduce 的优势在于，它能从全局依赖关系出发，把多个操作组合成更灵活的执行图，只在必要的边界进行 Shuffle 或落盘。例如，一个作业可以是 `Map -> Reduce`，也可以是 `Map -> Map -> Reduce`，甚至是多个Map的输出汇合到一个Reduce。
 
 Tez 由 Hortonworks 主导贡献给 Apache 社区，HDP/CDP 体系（现 Cloudera CDP）默认采用。
 
@@ -250,10 +294,31 @@ Tez 最关键的创新是**把 MR 那种僵硬的 "Map + Reduce 两段式" 拆�
 
 ### ③ 与 MR 的对比图（逻辑示意）
 
+假设有 SQL：
+
+```sql
+SELECT city, COUNT(*) AS cnt
+FROM user_log
+WHERE dt = '2026-05-27'
+GROUP BY city;
 ```
-MR：    Map → [HDFS 落盘] → Map → [HDFS 落盘] → Reduce     （多次跨 Job 落盘）
-Tez：   Vertex1 ──Edge──▶ Vertex2 ──Edge──▶ Vertex3        （单 DAG，内存/本地磁盘传输）
-```
+
+---
+
+| 对比项                      | Hive on MapReduce                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       | Hive on Tez                                                                                                                                                                                                                                                                                                                 | Hive on Spark                                                                                                                                                                                                                                                                                                                                   |
+| ------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **核心定位**                 | Hive SQL 被编译成一个或多个 MapReduce Job 执行                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     | Hive SQL 被编译成 Tez DAG 执行                                                                                                                                                                                                                                                                                                    | Hive SQL 被编译成 Spark 执行计划，通过 Spark DAG/Stage 执行                                                                                                                                                                                                                                                                                                  |
+| **执行模型**                 | 主要是 `Map-only` 或 `Map → Shuffle/Sort → Reduce`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          | `DAG → Vertex → Task`                                                                                                                                                                                                                                                                                                       | `Application → Job → Stage → Task`                                                                                                                                                                                                                                                                                                              |
+| **过程**                   | **Map 阶段：**<br><br>读取 HDFS 上的输入数据<br><br>执行过滤条件，例如 `dt = '2026-05-27'`<br><br>生成中间 KV，例如 `(city, 1)`<br><br>Map 输出会按照分区规则写入本地磁盘的中间文件，不是写入 HDFS<br><br>**Shuffle/Sort 阶段：**<br><br>按照 `city` 进行分区。<br><br>相同 `city` 的数据会被分配到同一个 Reducer。<br><br>Reducer 通过网络从各个 Mapper 所在节点拉取对应分区的中间结果。<br><br>拉取后会进行 merge/sort。<br><br>**Reduce 阶段：**<br><br>Reducer 对相同 `city` 的数据做最终聚合，例如 `COUNT(*)`。<br><br>**Output 阶段：**<br><br>Reduce 结果直接写入 HDFS。<br><br>如果 SQL 很复杂，例如包含多个 join、group by、order by，可能被拆成多个 MR Job 串联执行，Job 之间通常通过 HDFS 落盘传递中间结果。 | **Vertex 1：**<br><br>读取数据。<br><br>执行过滤条件。<br><br>执行局部聚合，例如先在每个 Task 内部做 `city → partial count`。<br><br>**Shuffle Edge by city：**<br><br>通过 Tez Edge 按 `city` 重新分布数据。<br><br>相同 `city` 的数据进入下游对应的 Vertex Task。<br><br>**Vertex 2：**<br><br>执行全局聚合。<br><br>输出最终结果。<br><br>相比 MapReduce，Tez 可以把多个处理阶段组织成一个 DAG，不一定每个阶段都落 HDFS。 | **Stage 0：**<br><br>读取数据。<br><br>执行过滤。<br><br>执行 map-side combine / partial aggregation。<br><br>执行 shuffle write，把按 `city` 分区后的中间结果写到本地磁盘，供下游 Stage 拉取。<br><br>**Shuffle：**<br><br>按照 `city` 重新分布数据。<br><br>**Stage 1：**<br><br>执行 shuffle read。<br><br>读取上游 Stage 的 shuffle 文件。<br><br>执行 reduce aggregation，也就是最终聚合。<br><br>输出结果到 HDFS 或其他存储。 |
+| **是否必须有 Reduce/Shuffle** | 不一定。<br><br>如果只是 `SELECT ... WHERE ...` 这种过滤/投影，可以是 Map-only Job。<br><br>如果有 `GROUP BY city`，一般需要 Shuffle 和 Reduce。                                                                                                                                                                                                                                                                                                                                                                                                                     | 不一定。<br><br>如果只是过滤/投影，可以只有一个 Vertex。<br><br>如果有 group by/join/order by，则 DAG 中会出现 Shuffle Edge。                                                                                                                                                                                                                             | 不一定。<br><br>窄依赖操作，例如 filter/map/project，可以放在同一个 Stage。<br><br>遇到 groupBy/join/distinct/orderBy 这类宽依赖，通常会产生 Shuffle 并切分 Stage。                                                                                                                                                                                                                   |
+| **中间结果位置**               | Map 输出中间结果主要在 Mapper 节点本地磁盘。<br><br>多个 MR Job 之间的中间结果通常落 HDFS。                                                                                                                                                                                                                                                                                                                                                                                                                                                                          | Vertex 之间可以通过内存、本地磁盘、网络传输。<br><br>不必像多个 MR Job 那样频繁落 HDFS。                                                                                                                                                                                                                                                                  | Stage 内部可以 pipeline。<br><br>Shuffle 文件通常写本地磁盘。<br><br>RDD/DataFrame 可以 cache/persist 到内存或磁盘。                                                                                                                                                                                                                                                    |
+| **DAG 能力**               | 单个 MR Job 本身不是灵活 DAG。<br><br>复杂 SQL 往往拆成多个 MR Job 串起来。                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  | Tez 的核心就是 DAG。<br><br>Hive 会把 SQL 编译成 Vertex + Edge 的 DAG。                                                                                                                                                                                                                                                                  | Spark 也是 DAG 执行。<br><br>Spark 根据 RDD lineage 或 Spark SQL 物理计划生成 DAG，再切分 Stage。                                                                                                                                                                                                                                                                  |
+| **优化**                   | 主要依赖 Hive 优化器 + MapReduce 能力。<br><br>常见优化包括：<br><br>分区裁剪。<br><br>列裁剪。<br><br>谓词下推。<br><br>Map-side aggregation。<br><br>Combiner。<br><br>MapJoin。<br><br>Bucket Map Join。<br><br>Sort-Merge Bucket Join。<br><br>压缩。<br><br>合理设置 Reducer 数量。                                                                                                                                                                                                                                                                                              | 相比 MR，可以减少不必要的 HDFS 落盘。<br><br>多个阶段可以组织成一个 DAG。<br><br>支持更灵活的数据传输边，例如 shuffle edge、broadcast edge。<br><br>可以减少 Job 启动开销。<br><br>更适合 Hive SQL 批处理查询。                                                                                                                                                                         | 支持 Catalyst 优化器和 Tungsten 执行优化。<br><br>可以做 whole-stage codegen。<br><br>支持 cache/persist。<br><br>对迭代计算、交互式查询、复杂 ETL 更友好。<br><br>可以通过 AQE 自适应优化 shuffle 分区、join 策略等。                                                                                                                                                                              |
+| **优点**                   | 模型简单。<br><br>稳定成熟。<br><br>容错能力强。<br><br>适合传统大规模离线批处理。                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   | 相比 MR 更快。<br><br>减少多 MR Job 之间的 HDFS 落盘。<br><br>更适合 Hive SQL。<br><br>资源利用率更好。                                                                                                                                                                                                                                               | 通用性强。<br><br>不只支持 SQL，还支持 DataFrame、RDD、机器学习、流处理。<br><br>内存计算能力强。<br><br>复杂任务性能通常更好。                                                                                                                                                                                                                                                            |
+| **缺点**                   | 多阶段 SQL 容易拆成多个 MR Job。<br><br>Job 启动开销较大。<br><br>中间结果频繁落 HDFS。<br><br>对复杂 DAG 表达能力弱。<br><br>交互式查询性能较差。                                                                                                                                                                                                                                                                                                                                                                                                                                  | 主要作为 DAG 执行框架，本身不是完整通用计算生态。<br><br>通常依赖 Hive/Pig 等上层系统。<br><br>调优也有一定复杂度。                                                                                                                                                                                                                                                   | 集群资源消耗可能更高。<br><br>内存管理、shuffle、倾斜、executor 配置调优复杂。<br><br>Hive on Spark 在很多企业环境中不一定是主流 Hive 执行方式。                                                                                                                                                                                                                                              |
+| **适合场景**                 | 传统离线批处理。<br><br>稳定性要求高、性能要求不极致的任务。<br><br>老 Hadoop 集群。                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  | Hive SQL 批处理查询。<br><br>希望替代 Hive on MR，提高 SQL 执行效率。                                                                                                                                                                                                                                                                         | 复杂 ETL。<br><br>交互式分析。<br><br>机器学习。<br><br>流批一体。<br><br>需要复用 Spark 生态的场景。                                                                                                                                                                                                                                                                        |
+
+---
 
 ### ④ Tez 在 Hive 上的关键收益
 
@@ -289,7 +354,100 @@ Tez：   Vertex1 ──Edge──▶ Vertex2 ──Edge──▶ Vertex3        
 
 Hive on Spark 就是把 Hive 的物理计划翻译成 **Spark 的 RDD/DAG 任务** 来执行，由 Cloudera 主导推进（CDH 体系默认）。
 
-### ② ⚠️ 区分两个易混概念
+### ② 概念定义
+
+**1、RDD = Resilient Distributed Dataset 弹性分布式数据集**，它是 Spark 早期最核心的抽象，可以拆成三层理解
+
+- **Dataset：数据集**，RDD 表示一批数据。比如日志文件：
+  
+  ```sql
+  line1
+  line2
+  line3
+  ...
+  ```
+  
+  在 Spark 里可以表示成 `val rdd = sc.textFile("hdfs://logs")`
+
+- **Distributed：分布式**，RDD 不是存在一台机器上，而是被切成多个 partition，分布在集群多个 Executor 上。
+  
+  ```sql
+  RDD
+  ├── Partition 0 → Executor A
+  ├── Partition 1 → Executor B
+  ├── Partition 2 → Executor C
+  └── Partition 3 → Executor D
+  ```
+  
+  这里的 partition 是 Spark 内部的计算分区，不要和 Hive 表分区完全混淆。（Hive 表分区通常是物理目录：`/dt=2026-05-27/hour=10/`）
+  
+  Spark RDD partition 是执行层面的数据切片：
+  
+  ```sql
+  Task 0 处理 Partition 0
+  Task 1 处理 Partition 1
+  Task 2 处理 Partition 2
+  ```
+
+- **Resilient：弹性/容错**，RDD 的重点是：
+  
+  它不一定要把每一步的中间结果都持久化下来，而是记录“这个 RDD 是怎么由上游 RDD 计算出来的”。（这就是 lineage，血缘 ）例如：
+  
+  ```scala
+  val rdd1 = sc.textFile("logs")
+  val rdd2 = rdd1.map(parse)
+  val rdd3 = rdd2.filter(_.isValid)
+  val rdd4 = rdd3.map(x => (x.userId, 1))
+  val rdd5 = rdd4.reduceByKey(_ + _)
+  ```
+  
+  血缘关系是：`rdd1 → rdd2 → rdd3 → rdd4 → rdd5` **用于实现 RDD 的容错能力**
+  
+  如果 rdd3 的某个 partition 丢了，Spark 可以根据血缘重新算：
+  
+  ```scala
+  rdd1 的对应 partition
+      ↓
+  重新 map
+      ↓
+  重新 filter
+      ↓
+  恢复 rdd3 的那个 partition
+  ```
+
+**2、某分区数据丢失**
+
+“分区数据丢失”通常不是指 Hive 表分区目录丢了，而是指：计算过程中，某个 Task 产生的中间结果丢失了。比如 Spark 中：
+
+```sql
+RDD Partition 3 缓存在 Executor B 内存中
+```
+
+后来：`Executor B 挂了`，那么 `Partition 3 的缓存数据就没了`
+但是 Spark 有 lineage存储了 `Partition 3 是怎么从上游 partition 算出来的`，所以可以重新计算。
+
+MapReduce 的 Map 输出中间结果通常在本地磁盘。比如：
+
+```sql
+MapTask_1 在 NodeA 上产生中间文件
+ReduceTask_3 需要从 NodeA 拉这个文件
+```
+
+如果 NodeA 挂了，Reduce 拉不到这个中间结果。
+
+MapReduce 的处理方式是：
+
+```sql
+重新运行失败的 MapTask_1
+重新生成中间输出
+Reduce 再去拉
+```
+
+所以 **MapReduce** 也有容错。但是它的容错方式更偏：**Task 级别重试** 
+
+**Spark RDD** 更强调：**通过 RDD 血缘关系重算丢失的 partition**  
+
+### ③ ⚠️ 区分两个易混概念
 
 | 概念                                 | 入口               | SQL 解析             | 物理执行               | 元数据            |
 | ---------------------------------- | ---------------- | ------------------ | ------------------ | -------------- |
@@ -298,14 +456,14 @@ Hive on Spark 就是把 Hive 的物理计划翻译成 **Spark 的 RDD/DAG 任务
 
 > 业界主流是后者：**Spark 自己解析 + 自己执行，只借用 HMS 读元数据**。Hive 退化成元数据中枢。
 
-### ③ 核心改进
+### ④ 核心改进
 
 1. **天然 DAG + 内存计算**：中间结果优先驻留内存（RDD/DataFrame Cache），磁盘 I/O 大幅降低。
 2. **统一执行模型**：Map/Reduce/Shuffle 都是 RDD 上的算子，调度粒度细化为 Stage → Task。
 3. **Tungsten + CodeGen**：堆外内存管理 + 全阶段代码生成，把物理执行下推到接近手写代码的效率。
 4. **丰富生态**：批/流/ML/图 一栈式复用，无需为不同负载切换引擎。
 
-### ④ 优缺点
+### ⑤ 优缺点
 
 | 维度     | 表现                                       |
 | ------ | ---------------------------------------- |
@@ -327,18 +485,18 @@ Hive on Spark 就是把 Hive 的物理计划翻译成 **Spark 的 RDD/DAG 任务
 
 ## 3.4 三者对比总表（重点记忆）
 
-| 对比项             | **MapReduce**   | **Tez**                 | **Spark**     |
-| --------------- | --------------- | ----------------------- | ------------- |
-| **执行模型**        | 两段式 Map-Reduce  | DAG                     | DAG + 内存计算    |
-| **中间结果**        | **必须落 HDFS**    | 内存 / 本地磁盘               | 优先内存（可 cache） |
-| **JVM 启动**      | 每 Task 一个       | Container 复用            | Executor 长驻   |
-| **多 Stage SQL** | 多个 Job 串行       | 一个 DAG                  | 一个 DAG        |
-| **性能**          | ⭐（最慢）           | ⭐⭐⭐⭐                    | ⭐⭐⭐⭐          |
-| **稳定性**         | ⭐⭐⭐⭐⭐           | ⭐⭐⭐⭐                    | ⭐⭐⭐           |
-| **资源占用**        | 低（磁盘换内存）        | 中                       | 高（内存密集）       |
-| **典型发行版**       | Hive 1.x、早期 CDH | HDP / CDP               | CDH / 通用      |
-| **当前状态**        | 已废弃             | 仍在维护                    | 主流之一          |
-| **适用场景**        | 超大规模、稳定优先的离线批   | Hive 交互式 / 批处理（HDP/CDP） | 批流一体、ML 一栈式   |
+| 对比项             | **MapReduce**   | **Tez**                 | **Spark**                            |
+| --------------- | --------------- | ----------------------- | ------------------------------------ |
+| **执行模型**        | 两段式 Map-Reduce  | DAG                     | DAG + 内存计算                           |
+| **中间结果**        | **必须落 HDFS**    | 内存 / 本地磁盘               | 优先内存（可 cache）                        |
+| **JVM 启动**      | 每 Task 一个，启动开销大 | Container 复用            | Executor 长驻，任务复用，启动开销小。              |
+| **多 Stage SQL** | 多个 Job 串行       | 一个 DAG                  | 一个 DAG                               |
+| **性能**          | ⭐（最慢）           | ⭐⭐⭐⭐                    | ⭐⭐⭐⭐<br/>比基于磁盘的 MapReduce 快 10-100 倍 |
+| **稳定性**         | ⭐⭐⭐⭐⭐           | ⭐⭐⭐⭐                    | ⭐⭐⭐                                  |
+| **资源占用**        | 低（磁盘换内存）        | 中                       | 高（内存密集）                              |
+| **典型发行版**       | Hive 1.x、早期 CDH | HDP / CDP               | CDH / 通用                             |
+| **当前状态**        | 已废弃             | 仍在维护                    | 主流之一                                 |
+| **适用场景**        | 超大规模、稳定优先的离线批   | Hive 交互式 / 批处理（HDP/CDP） | 批流一体、ML 一栈式                          |
 
 ## 3.5 实际工程中的选型建议
 
