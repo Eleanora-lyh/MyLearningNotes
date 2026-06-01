@@ -1,3 +1,12 @@
+---
+title: "Windows 使用 Docker Compose 搭建 Hive 4.1.0 + MySQL 持久化环境"
+date: 2026-06-01T22:12:03+08:00
+draft: false
+tags: ["Hive", "Docker", "Docker Compose", "Metastore"]
+categories: ["Hive"]
+description: "记录在 Windows 本机通过 Docker Compose 搭建 HiveServer2、Hive Metastore 和 MySQL Metastore DB，并实现 Hive 元数据与表数据持久化的本地学习环境。"
+---
+
 # Windows 使用 Docker Compose 搭建 Hive 4.1.0 + MySQL 持久化环境
 
 这篇笔记记录一套适合本地学习的 Hive 环境：在 Windows 本机通过 Docker Compose 一次性启动 **HiveServer2 + Hive Metastore + MySQL Metastore DB**，并支持 Beeline 和 DBeaver 连接。
