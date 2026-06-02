@@ -1,0 +1,22 @@
+<a class="back-to-top" href="#" aria-label="返回文章顶部" title="返回文章顶部">
+	<span aria-hidden="true">↑</span>
+</a>
+
+<script>
+	(function () {
+		var button = document.querySelector('.back-to-top');
+		if (!button) return;
+
+		function updateBackToTop() {
+			button.classList.toggle('is-visible', window.scrollY > 400);
+		}
+
+		button.addEventListener('click', function (event) {
+			event.preventDefault();
+			window.scrollTo({ top: 0, behavior: 'smooth' });
+		});
+
+		window.addEventListener('scroll', updateBackToTop, { passive: true });
+		updateBackToTop();
+	})();
+</script>

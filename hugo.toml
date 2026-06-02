@@ -1,8 +1,9 @@
 baseURL = 'https://eleanora-lyh.github.io/MyLearningNotes/'
 languageCode = 'zh-cn'
 title = 'My Learning Notes'
-theme = 'PaperMod'
+theme = 'hugo-theme-stack'
 defaultContentLanguage = "zh-cn"
+hasCJKLanguage = true
 timeZone = "Asia/Shanghai"
 enableEmoji = true
 
@@ -12,104 +13,143 @@ enableEmoji = true
 [frontmatter]
   date = [":git", ":default", ":fileModTime"]  # date 优先使用 Git 首次提交
   lastmod = [":git", ":fileModTime", ":default"]  # lastmod 使用最后提交时间
-
   publishDate = [":default"]
+
+[pagination]
+  pagerSize = 10
 
 [params]
   description = "个人学习笔记博客"
   author = "Eleanora"
-  comments = true  # 全局启用评论
-  
-  # 目录配置
-  ShowToc = true  # 显示文章目录
-  TocOpen = true  # 默认展开目录
-  
-  # 显示阅读时间
-  ShowReadingTime = true  # 显示预计阅读时间
-  ShowWordCount = true  # 显示字数统计
-  
-  # Google Analytics 配置
-  # 请将下面的 G-XXXXXXXXXX 替换为你的 Google Analytics Measurement ID
-  # 获取地址: https://analytics.google.com/
-  googleAnalytics = "G-MV297YCMCZ"  # 例如: "G-XXXXXXXXXX"
-  
-  # 文章页面显示浏览量
-  ShowPageViews = true
-  
-  # 在页面顶部显示站点统计（部署后才显示真实数据）
-  ShowSiteStats = true
-  
-  # 启用搜索功能
-  [params.homeInfoParams]
-    Title = "欢迎来到我的学习笔记 👋"
-    Content = "记录学习过程中的点滴"
+  mainSections = ["posts"]
+  rssFullContent = true
 
-  # 社交链接
-  [[params.socialIcons]]
-    name = "github"
-    url = "https://github.com/Eleanora-lyh"
+  # Stack 主题使用 article.toc 控制文章内目录，使用 widgets.page 控制侧边栏目录。
+  [params.article]
+    toc = true
+    readingTime = true
+    headingAnchor = false
+    math = false
 
-  # 显示代码复制按钮
-  [params.assets]
-    disableHLJS = false
+    [params.article.list]
+      showTags = true
+
+  [params.dateFormat]
+    published = "2006-01-02 15:04:05"
+    lastUpdated = "2006-01-02 15:04:05"
+
+  [params.footer]
+    since = 2026
+    customText = ""
+
+  [params.sidebar]
+    emoji = "📘"
+    subtitle = "记录学习过程中的点滴"
+    compact = false
+    avatar = ""
+
+  # Stack 主题的组件配置。切换主题时只需要替换本节，不再依赖根目录 layouts 覆盖件。
+  [params.widgets]
+    homepage = [
+      { type = "search" },
+      { type = "archives", params = { limit = 5 } },
+      { type = "categories", params = { limit = 10 } },
+      { type = "tag-cloud", params = { limit = 20 } },
+    ]
+    page = [{ type = "toc" }]
+
+  [params.colorScheme]
+    toggle = true
+    default = "auto"
 
   # Giscus 评论系统配置
   # 需要先在 GitHub 仓库启用 Discussions 功能
   # 访问 https://giscus.app/zh-CN 获取配置参数
-  [params.giscus]
-    repo = "Eleanora-lyh/MyLearningNotes"
-    repoId = "R_kgDOR3zQkg"  # 替换为你的 repo ID
-    category = "Announcements"
-    categoryId = "DIC_kwDOR3zQks4C57x0"  # 替换为你的 category ID
-    mapping = "title"  # 使用文章标题而非 URL 路径，避免中文乱码
-    theme = "preferred_color_scheme"
-    lang = "zh-CN"
-    crossorigin = "anonymous"
-    reactionsEnabled = "1"
-    emitMetadata = "0"
-    inputPosition = "top"
-    loading = "lazy"
+  [params.comments]
+    enabled = true  # 全局启用评论
+    provider = "giscus"
+
+    [params.comments.giscus]
+      repo = "Eleanora-lyh/MyLearningNotes"
+      repoID = "R_kgDOR3zQkg"  # 替换为你的 repo ID
+      category = "Announcements"
+      categoryID = "DIC_kwDOR3zQks4C57x0"  # 替换为你的 category ID
+      mapping = "title"  # 使用文章标题而非 URL 路径，避免中文乱码
+      lightTheme = "light"
+      darkTheme = "dark_dimmed"
+      lang = "zh-CN"
+      reactionsEnabled = 1
+      emitMetadata = 0
+      inputPosition = "top"
+      strict = 0
+      loading = "lazy"
+
+# Google Analytics 配置
+# 请将下面的 G-XXXXXXXXXX 替换为你的 Google Analytics Measurement ID
+# 获取地址: https://analytics.google.com/
+[services.googleAnalytics]
+  ID = "G-MV297YCMCZ"  # 例如: "G-XXXXXXXXXX"
 
 # 菜单配置
 [[menu.main]]
   name = "首页"
   url = "/"
   weight = 1
+  [menu.main.params]
+    icon = "home"
 
 [[menu.main]]
   name = "文章"
   url = "/posts/"
   weight = 2
+  [menu.main.params]
+    icon = "archives"
 
 [[menu.main]]
   name = "归档"
   url = "/archives/"
   weight = 3
-
+  [menu.main.params]
+    icon = "archives"
 
 [[menu.main]]
   name = "分类"
   url = "/categories/"
   weight = 4
+  [menu.main.params]
+    icon = "categories"
 
 [[menu.main]]
   name = "标签"
   url = "/tags/"
   weight = 5
+  [menu.main.params]
+    icon = "tag"
 
 [[menu.main]]
   name = "关于"
   url = "/about/"
   weight = 6
+  [menu.main.params]
+    icon = "user"
+
+# 社交链接
+[[menu.social]]
+  identifier = "github"
+  name = "GitHub"
+  url = "https://github.com/Eleanora-lyh"
+  [menu.social.params]
+    icon = "brand-github"
+    newTab = true
 
 # 分类和标签
 [taxonomies]
   category = "categories"
   tag = "tags"
 
-# 输出格式
+# 输出格式：Stack 搜索页在 content/search.md 中单独生成 JSON 索引。
 [outputs]
-  home = ["HTML", "RSS", "JSON"]
+  home = ["HTML", "RSS"]
 
 # Markdown 配置
 [markup]
