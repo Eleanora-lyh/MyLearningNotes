@@ -6,6 +6,7 @@ tags: ["Hive", "Hadoop", "分区", "分桶"]
 categories: ["Hive"]
 description: "深入讲解 Hive 分区与分桶的原理、执行过程、Bucket Map Join、SMB Join 以及最佳实践"
 ---
+
 ## 一、不分区+不分桶
 
 假设两张表分别为orders、users（后面直接简称为A、B表）。执行普通JOIN（无分区、无分桶）会发生什么？
@@ -114,17 +115,19 @@ Shuffle 规则： reducer_id = hash(user_id) % R
 #### 4.3、Reduce
 
 - **1、收集**：到了 Reducer0，它收到的所有具有相同JOIN键的记录, `user_id=1001` 的记录长这样：
-
+  
   ```sql
   user_id=1001, order_id=8001, amount=99.0
   user_id=1001, order_id=8002, amount=50.0
   user_id=1001, order_id=8003, amount=120.0
   user_id=1001, name="张三", city="成都"
   ```
-- **2、分组**：Reducer 在内存里把来自两表的记录按JOIN键分组
 
+- **2、分组**：Reducer 在内存里把来自两表的记录按JOIN键分组
+  
   - A 组（orders）：3 条
   - B 组（users）：1 条
+
 - **3、JOIN**：在组内进行笛卡尔积：3 × 1 = 3 条 Join 结果输出。
 
 #### 4.4 总结
@@ -149,12 +152,11 @@ Reduce阶段：每个Reducer内做笛卡尔积
 
 到这里应该能明白：为什么"都在HDFS存储了"，Join还要网络传输到内存才能计算了吧！
 
-
-| 误解                                | 真相                                                                                              |
-| ----------------------------------- | ------------------------------------------------------------------------------------------------- |
-| HDFS 是共享存储，数据已经"在一起"了 | HDFS 是**分布式存储**，数据**物理上分散**在几百台机器的磁盘上                                     |
-| 读取就能 Join                       | 读取只能拿到"局部数据"，Join 需要"全局按 key 聚合"                                                |
-| Shuffle 没必要                      | **Shuffle 是分布式计算里"让相同 key 相遇"的唯一手段**（除非用 Map Join / Bucket Join 提前规划好） |
+| 误解                    | 真相                                                                     |
+| --------------------- | ---------------------------------------------------------------------- |
+| HDFS 是共享存储，数据已经"在一起"了 | HDFS 是**分布式存储**，数据**物理上分散**在几百台机器的磁盘上                                  |
+| 读取就能 Join             | 读取只能拿到"局部数据"，Join 需要"全局按 key 聚合"                                       |
+| Shuffle 没必要           | **Shuffle 是分布式计算里"让相同 key 相遇"的唯一手段**（除非用 Map Join / Bucket Join 提前规划好） |
 
 ## 二、分区+不分桶
 
@@ -620,29 +622,28 @@ Map阶段：
 ## 五、最佳实践总结
 
 1. **分桶设计原则**：
-
+   
    选择高基数、常作为JOIN条件的列
-
+   
    桶数计算：总数据量 / 每个桶目标大小(200MB-1GB) 例如：100GB数据，目标500MB/桶 → 200个桶
-
+   
    确保频繁JOIN的表在JOIN键上分桶，且桶数相同或成倍数
-
+   
    ```sql
    -- 最佳：桶数相同
    CREATE TABLE table_a CLUSTERED BY (key) INTO 64 BUCKETS;
    CREATE TABLE table_b CLUSTERED BY (key) INTO 64 BUCKETS;
-
+   
    -- 可接受：桶数成倍数（大表桶数是小表的整数倍）
    CREATE TABLE large_table CLUSTERED BY (key) INTO 64 BUCKETS;  -- 大表
    CREATE TABLE small_table CLUSTERED BY (key) INTO 32 BUCKETS;  -- 小表
-
+   
    -- 避免：桶数不成倍数
    CREATE TABLE table_a CLUSTERED BY (key) INTO 64 BUCKETS;
    CREATE TABLE table_b CLUSTERED BY (key) INTO 30 BUCKETS;  -- 不好！
    ```
-
 - **配置调优**：
-
+  
   ```sql
   -- 确保启用桶优化
   SET hive.optimize.bucketmapjoin = true;
@@ -650,16 +651,17 @@ Map阶段：
   SET hive.enforce.bucketing = true;  -- 确保写入时正确分桶
   SET hive.enforce.sorting = true;    -- 如果使用sortedmerge，需要排序
   ```
-- **监控与验证**：
 
+- **监控与验证**：
+  
   ```sql
   -- 查看桶的统计信息
   DESCRIBE FORMATTED table_a;
-
+  
   -- 检查桶数是否匹配
   SHOW TBLPROPERTIES table_a;
   SHOW TBLPROPERTIES table_b;
-
+  
   -- 查看执行计划确认优化
   EXPLAIN EXTENDED
   SELECT /*+ MAPJOIN(b) */ a.*, b.*
@@ -676,13 +678,12 @@ Map阶段：
 
 **效率对比表**
 
-
-| 场景                  | 任务类型     | 总数据移动           | 内存使用                              | 网络开销 | 执行时间估算       |
-| --------------------- | ------------ | -------------------- | ------------------------------------- | -------- | ------------------ |
-| 不分桶（Reduce Join） | Map + Reduce | 110GB全部Shuffle     | 中等                                  | 极高     | 慢（5-10分钟）     |
-| **只有A分桶，B广播**  | Map Only     | B表广播10次（100GB） | 极高（每个节点存10GB B表）            | 高       | 中等（2-3分钟）    |
-| **A64桶，B32桶**      | Map Only     | 无Shuffle，本地读取  | 低（每个任务约0.3GB A + 0.3GB B）     | 极低     | 快（1-2分钟）      |
-| **都分桶64桶**        | Map Only     | 无Shuffle，本地读取  | 最低（每个任务约0.16GB A + 0.16GB B） | 极低     | 最快（30秒-1分钟） |
+| 场景               | 任务类型         | 总数据移动          | 内存使用                         | 网络开销 | 执行时间估算      |
+| ---------------- | ------------ | -------------- | ---------------------------- | ---- | ----------- |
+| 不分桶（Reduce Join） | Map + Reduce | 110GB全部Shuffle | 中等                           | 极高   | 慢（5-10分钟）   |
+| **只有A分桶，B广播**    | Map Only     | B表广播10次（100GB） | 极高（每个节点存10GB B表）             | 高    | 中等（2-3分钟）   |
+| **A64桶，B32桶**    | Map Only     | 无Shuffle，本地读取  | 低（每个任务约0.3GB A + 0.3GB B）    | 极低   | 快（1-2分钟）    |
+| **都分桶64桶**       | Map Only     | 无Shuffle，本地读取  | 最低（每个任务约0.16GB A + 0.16GB B） | 极低   | 最快（30秒-1分钟） |
 
 - **内存效率**：混合分桶每个任务只处理1/32的数据，内存压力小
 - **网络效率**：混合分桶无Shuffle，只有A分桶需要广播整个B表
@@ -692,13 +693,12 @@ Map阶段：
 
 **配置速览表**
 
-
-| 配置项                                    | 作用阶段   | 作用对象 | 默认值（不同版本）   | 一句话说明                             |
-| ----------------------------------------- | ---------- | -------- | -------------------- | -------------------------------------- |
-| `hive.optimize.bucketmapjoin`             | **查询时** | 读       | false                | 允许优化器把 Join 转成 Bucket Map Join |
-| `hive.optimize.bucketmapjoin.sortedmerge` | **查询时** | 读       | false                | 允许优化器把 Join 转成 SMB Join        |
-| `hive.enforce.bucketing`                  | **写入时** | 写       | Hive 2.x 起默认 true | 强制 INSERT 时按桶数生成对应 reducer   |
-| `hive.enforce.sorting`                    | **写入时** | 写       | Hive 2.x 起默认 true | 强制 INSERT 时按 SORTED BY 排序        |
+| 配置项                                       | 作用阶段    | 作用对象 | 默认值（不同版本）         | 一句话说明                          |
+| ----------------------------------------- | ------- | ---- | ----------------- | ------------------------------ |
+| `hive.optimize.bucketmapjoin`             | **查询时** | 读    | false             | 允许优化器把 Join 转成 Bucket Map Join |
+| `hive.optimize.bucketmapjoin.sortedmerge` | **查询时** | 读    | false             | 允许优化器把 Join 转成 SMB Join        |
+| `hive.enforce.bucketing`                  | **写入时** | 写    | Hive 2.x 起默认 true | 强制 INSERT 时按桶数生成对应 reducer     |
+| `hive.enforce.sorting`                    | **写入时** | 写    | Hive 2.x 起默认 true | 强制 INSERT 时按 SORTED BY 排序      |
 
 > 📌 **关键区分**：`optimize.*` 是"**查询读取时的优化开关**"，`enforce.*` 是"**数据写入时的约束开关**"。两者必须配合使用，否则查询优化没有数据基础。
 
@@ -737,13 +737,12 @@ After  (Bucket MJ):    Map (桶对桶直接Join) → 输出 ✅
 
 **SMB Join 比普通 Bucket Map Join 强在哪？**
 
-
-| 维度     | Bucket Map Join        | SMB Join                     |
-| -------- | ---------------------- | ---------------------------- |
+| 维度   | Bucket Map Join | SMB Join         |
+| ---- | --------------- | ---------------- |
 | 内存需求 | 小桶要全部装进 HashMap | **几乎零内存**（双指针归并） |
-| 桶数要求 | 成倍数即可             | 必须**完全相等**             |
-| 排序要求 | 不需要                 | 必须按 Join Key 排序         |
-| 适用场景 | 大表 Join 中表         | **超大表 Join 超大表**       |
+| 桶数要求 | 成倍数即可           | 必须**完全相等**       |
+| 排序要求 | 不需要             | 必须按 Join Key 排序  |
+| 适用场景 | 大表 Join 中表      | **超大表 Join 超大表** |
 
 **归并原理**（这就是为什么不用内存）：
 
@@ -860,13 +859,12 @@ CLUSTERED BY (user_id) SORTED BY (user_id) INTO 32 BUCKETS
 
 ### 典型踩坑场景
 
-
-| 现象                                       | 原因                                                     | 解决                                                       |
-| ------------------------------------------ | -------------------------------------------------------- | ---------------------------------------------------------- |
-| 表分桶了，但 Join 还是 Shuffle             | 没开`hive.optimize.bucketmapjoin`                        | 启用查询优化参数                                           |
-| 开了 bucketmapjoin，但 Join 报错或结果不对 | 写入时没开`hive.enforce.bucketing`，桶文件数和声明不一致 | 重建表 + 开 enforce                                        |
-| SMB Join 没生效，回退到 Bucket MJ          | 桶内未排序 / 没开 sortedmerge                            | 开`enforce.sorting` + `optimize.bucketmapjoin.sortedmerge` |
-| 桶数对，但 Join 结果有遗漏                 | 写入时用了`DISTRIBUTE BY` 但 hash 函数不同               | 用`INSERT` 让 Hive 自动按桶规则写                          |
+| 现象                              | 原因                                       | 解决                                                        |
+| ------------------------------- | ---------------------------------------- | --------------------------------------------------------- |
+| 表分桶了，但 Join 还是 Shuffle          | 没开`hive.optimize.bucketmapjoin`          | 启用查询优化参数                                                  |
+| 开了 bucketmapjoin，但 Join 报错或结果不对 | 写入时没开`hive.enforce.bucketing`，桶文件数和声明不一致 | 重建表 + 开 enforce                                           |
+| SMB Join 没生效，回退到 Bucket MJ      | 桶内未排序 / 没开 sortedmerge                   | 开`enforce.sorting` + `optimize.bucketmapjoin.sortedmerge` |
+| 桶数对，但 Join 结果有遗漏                | 写入时用了`DISTRIBUTE BY` 但 hash 函数不同         | 用`INSERT` 让 Hive 自动按桶规则写                                  |
 
 ---
 
