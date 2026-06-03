@@ -1,0 +1,163 @@
+<a class="back-to-top" href="#" aria-label="返回文章顶部" title="返回文章顶部">
+	<span aria-hidden="true">↑</span>
+</a>
+
+{{- if .IsPage }}
+<style>
+	:root {
+		--copy-protection-notice-bg: rgba(155, 153, 224, 0.92);
+		--copy-protection-notice-color: #fff;
+		--copy-protection-notice-shadow: rgba(0, 0, 0, 0.18);
+	}
+
+	.copy-protection-notice {
+		position: fixed;
+		left: 50%;
+		top: 50%;
+		z-index: 9999;
+		max-width: min(320px, calc(100vw - 32px));
+		padding: 10px 16px;
+		border-radius: 6px;
+		background: var(--copy-protection-notice-bg);
+		color: var(--copy-protection-notice-color);
+		font-size: 14px;
+		line-height: 1.5;
+		text-align: center;
+		box-shadow: 0 8px 24px var(--copy-protection-notice-shadow);
+		opacity: 0;
+		pointer-events: none;
+		transform: translate(-50%, -8px);
+		transition: opacity 0.2s ease, transform 0.2s ease;
+	}
+
+	.copy-protection-notice.is-visible {
+		opacity: 1;
+		transform: translate(-50%, 0);
+	}
+</style>
+{{- end }}
+
+<script>
+	(function () {
+		var button = document.querySelector('.back-to-top');
+		if (!button) return;
+
+		function updateBackToTop() {
+			button.classList.toggle('is-visible', window.scrollY > 400);
+		}
+
+		button.addEventListener('click', function (event) {
+			event.preventDefault();
+			window.scrollTo({ top: 0, behavior: 'smooth' });
+		});
+
+		window.addEventListener('scroll', updateBackToTop, { passive: true });
+		updateBackToTop();
+	})();
+</script>
+
+{{- if .IsPage }}
+<div class="copy-protection-notice" role="status" aria-live="polite">无法复制，本站文章内容受保护</div>
+
+<script>
+	(function () {
+		var protectedContent = document.querySelector('.article-content');
+		var notice = document.querySelector('.copy-protection-notice');
+		var noticeTimer = null;
+		if (!protectedContent) return;
+
+		function getSelectionRect() {
+			var selection = window.getSelection();
+			if (!selection || selection.rangeCount === 0 || selection.isCollapsed) return null;
+
+			var range = selection.getRangeAt(0);
+			var rect = range.getBoundingClientRect();
+			if (rect.width || rect.height) return rect;
+
+			return range.getClientRects()[0] || null;
+		}
+
+		function clamp(value, min, max) {
+			return Math.min(Math.max(value, min), max);
+		}
+
+		function positionNotice(event) {
+			var margin = 12;
+			var gap = 10;
+			var rect = getSelectionRect();
+			var point = rect
+				? { x: rect.left + rect.width / 2, y: rect.top }
+				: { x: event && event.clientX ? event.clientX : window.innerWidth / 2, y: event && event.clientY ? event.clientY : window.innerHeight / 2 };
+
+			notice.classList.remove('is-visible');
+			var noticeWidth = notice.offsetWidth;
+			var noticeHeight = notice.offsetHeight;
+			var left = clamp(point.x, margin + noticeWidth / 2, window.innerWidth - margin - noticeWidth / 2);
+			var top = point.y - noticeHeight - gap;
+
+			if (top < margin) {
+				top = point.y + gap;
+			}
+
+			if (top + noticeHeight > window.innerHeight - margin) {
+				top = window.innerHeight - margin - noticeHeight;
+			}
+
+			notice.style.left = left + 'px';
+			notice.style.top = Math.max(margin, top) + 'px';
+		}
+
+		function showNotice(event) {
+			if (!notice) return;
+			positionNotice(event);
+			notice.classList.add('is-visible');
+			window.clearTimeout(noticeTimer);
+			noticeTimer = window.setTimeout(function () {
+				notice.classList.remove('is-visible');
+			}, 1800);
+		}
+
+		function isEditable(target) {
+			return !!target.closest('input, textarea, select, [contenteditable="true"], [contenteditable=""]');
+		}
+
+		function isProtectedTarget(target) {
+			return !!target.closest('.article-content') && !isEditable(target);
+		}
+
+		function selectionTouchesProtectedContent() {
+			var selection = window.getSelection();
+			if (!selection || selection.rangeCount === 0 || selection.isCollapsed) return false;
+
+			for (var index = 0; index < selection.rangeCount; index++) {
+				var range = selection.getRangeAt(index);
+				if (protectedContent.contains(range.commonAncestorContainer) || range.intersectsNode(protectedContent)) {
+					return true;
+				}
+			}
+
+			return false;
+		}
+
+		function blockProtectedAction(event) {
+			if (isProtectedTarget(event.target) || selectionTouchesProtectedContent()) {
+				event.preventDefault();
+				showNotice(event);
+			}
+		}
+
+		document.addEventListener('copy', blockProtectedAction, true);
+		document.addEventListener('cut', blockProtectedAction, true);
+		document.addEventListener('dragstart', blockProtectedAction, true);
+		document.addEventListener('contextmenu', blockProtectedAction, true);
+		document.addEventListener('keydown', function (event) {
+			var key = event.key.toLowerCase();
+			var blockedShortcut = (event.ctrlKey || event.metaKey) && ['c', 's', 'u', 'p'].indexOf(key) !== -1;
+			if (blockedShortcut && (isProtectedTarget(event.target) || selectionTouchesProtectedContent())) {
+				event.preventDefault();
+				showNotice(event);
+			}
+		}, true);
+	})();
+</script>
+{{- end }}
