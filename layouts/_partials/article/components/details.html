@@ -55,7 +55,7 @@
 
                 {{ if $showPageViews }}
                     <span class="article-pageviews" id="busuanzi_container_page_pv">
-                        <span id="busuanzi_value_page_pv"></span> 次阅读
+                        <span id="busuanzi_value_page_pv"></span> {{ cond (eq $Page.Site.Language.Lang "en") "views" "次阅读" }}
                     </span>
                 {{ end }}
             </div>

@@ -7,6 +7,21 @@ hasCJKLanguage = true
 timeZone = "Asia/Shanghai"
 enableEmoji = true
 
+[languages]
+  [languages.zh-cn]
+    languageCode = "zh-cn"
+    languageName = "简体中文"
+    title = "My Learning Notes"
+    weight = 1
+    contentDir = "content"
+
+  [languages.en]
+    languageCode = "en-us"
+    languageName = "English"
+    title = "My Learning Notes"
+    weight = 2
+    contentDir = "content"
+
 # 日期配置：自动从文件系统获取日期
 # enableGitInfo = true  # 设为 true 可从 Git 提交历史获取日期
 

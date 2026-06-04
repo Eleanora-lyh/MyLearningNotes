@@ -1,4 +1,5 @@
-<a class="back-to-top" href="#" aria-label="返回文章顶部" title="返回文章顶部">
+{{- $backToTopText := cond (eq .Site.Language.Lang "en") "Back to top" "返回文章顶部" -}}
+<a class="back-to-top" href="#" aria-label="{{ $backToTopText }}" title="{{ $backToTopText }}">
 	<span aria-hidden="true">↑</span>
 </a>
 
@@ -59,7 +60,8 @@
 <script async src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script>
 
 {{- if .IsPage }}
-<div class="copy-protection-notice" role="status" aria-live="polite">无法复制，本站文章内容受保护</div>
+{{- $copyProtectionNotice := cond (eq .Site.Language.Lang "en") "Copying is disabled. This article is protected." "无法复制，本站文章内容受保护" -}}
+<div class="copy-protection-notice" role="status" aria-live="polite">{{ $copyProtectionNotice }}</div>
 
 <script>
 	(function () {

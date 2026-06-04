@@ -25,14 +25,14 @@
         
         <div class="site-meta">
             <h1 class="site-name"><a href="{{ .Site.Home.RelPermalink }}">{{ .Site.Title }}</a></h1>
-            <h2 class="site-description">{{ .Site.Params.sidebar.subtitle }}</h2>
+            <h2 class="site-description">{{ cond (eq .Site.Language.Lang "en") "Notes from my learning journey" .Site.Params.sidebar.subtitle }}</h2>
             {{ if .IsHome }}
                 <div class="site-statistics">
                     <span id="busuanzi_container_site_pv">
-                        总阅读量 <span id="busuanzi_value_site_pv"></span> 次
+                        {{ cond (eq .Site.Language.Lang "en") "Total views" "总阅读量" }} <span id="busuanzi_value_site_pv"></span> {{ cond (eq .Site.Language.Lang "en") "" "次" }}
                     </span>
                     <span id="busuanzi_container_site_uv">
-                        总访客数 <span id="busuanzi_value_site_uv"></span> 人次
+                        {{ cond (eq .Site.Language.Lang "en") "Total visitors" "总访客数" }} <span id="busuanzi_value_site_uv"></span> {{ cond (eq .Site.Language.Lang "en") "" "人次" }}
                     </span>
                 </div>
             {{ end }}
@@ -62,13 +62,30 @@
     <ol class="menu" id="main-menu">
         {{ $currentPage := . }}
         {{ range .Site.Menus.main }}
-        {{ $active := or (eq $currentPage.RelPermalink .URL) (or ($currentPage.HasMenuCurrent "main" .) ($currentPage.IsMenuCurrent "main" .)) }}
+        {{ $menuURL := .URL }}
+        {{ $menuPath := .URL }}
+        {{ if not (or (hasPrefix $menuURL "http://") (hasPrefix $menuURL "https://") (hasPrefix $menuURL "mailto:")) }}
+            {{ $siteBase := replaceRE "^https?://[^/]+" "" $currentPage.Site.BaseURL }}
+            {{ $menuPath = strings.TrimPrefix $siteBase $menuPath }}
+            {{ $menuPath = strings.TrimPrefix "/" $menuPath }}
+            {{ $menuURL = printf "%s%s" $currentPage.Site.Home.RelPermalink $menuPath }}
+        {{ end }}
+        {{ $menuName := .Name }}
+        {{ if eq $currentPage.Site.Language.Lang "en" }}
+            {{ if eq $menuPath "" }}{{ $menuName = "Home" }}{{ end }}
+            {{ if eq $menuPath "posts/" }}{{ $menuName = "Posts" }}{{ end }}
+            {{ if eq $menuPath "archives/" }}{{ $menuName = "Archives" }}{{ end }}
+            {{ if eq $menuPath "categories/" }}{{ $menuName = "Categories" }}{{ end }}
+            {{ if eq $menuPath "tags/" }}{{ $menuName = "Tags" }}{{ end }}
+            {{ if eq $menuPath "about/" }}{{ $menuName = "About" }}{{ end }}
+        {{ end }}
+        {{ $active := or (eq $currentPage.RelPermalink $menuURL) (or ($currentPage.HasMenuCurrent "main" .) ($currentPage.IsMenuCurrent "main" .)) }}
         <li {{ if $active }} class='current'{{ end }}>
-            <a href='{{ .URL }}' {{ if .Params.newTab }}target="_blank"{{ end }}>
+            <a href='{{ $menuURL }}' {{ if .Params.newTab }}target="_blank"{{ end }}>
                 {{ with .Params.Icon }}
                     {{ partial "helper/icon" . }}
                 {{ end }}
-                <span>{{- .Name -}}</span>
+                <span>{{- $menuName -}}</span>
             </a>
         </li>
         {{ end }}
