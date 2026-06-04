@@ -1,0 +1,17 @@
+{{- $result := slice -}}
+
+{{- if or .IsHome (eq .Kind "section") (eq .Kind "taxonomy") (eq .Kind "term") -}}
+    {{- $pages := partial "helper/pages.html" . -}}
+    {{- if and (eq .Kind "taxonomy") (eq .Data.Plural "tags") -}}
+        {{/* Hugo paginates at build time, so use a larger fixed page size for the tags cloud. */}}
+        {{- $tagPages := slice -}}
+        {{- range .Data.Terms.ByCount -}}
+            {{- $tagPages = $tagPages | append .Page -}}
+        {{- end -}}
+        {{- $result = .Paginate $tagPages 200 -}}
+    {{- else -}}
+        {{- $result = .Paginate $pages -}}
+    {{- end -}}
+{{- end -}}
+
+{{- return $result -}}

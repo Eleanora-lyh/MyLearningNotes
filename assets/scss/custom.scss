@@ -78,6 +78,38 @@
 	color: #ffffff !important;
 }
 
+/* Render the tags taxonomy page as a dense button cloud. */
+.taxonomy-cloud {
+	margin-top: 24px;
+
+	.tagCloud-tags {
+		gap: 10px;
+
+		a {
+			display: inline-flex;
+			align-items: center;
+			gap: 8px;
+			padding: 8px 14px;
+			font-size: 1.35rem;
+			line-height: 1.2;
+			white-space: nowrap;
+
+			small {
+				display: inline-flex;
+				align-items: center;
+				justify-content: center;
+				min-width: 22px;
+				padding: 2px 7px;
+				border-radius: 999px;
+				background: #9b98f1;
+				color: var(--accent-color-text);
+				font-size: 1.1rem;
+				font-weight: 700;
+			}
+		}
+	}
+}
+
 /* Stack site statistics vertically in the left sidebar. */
 .site-statistics {
 	display: flex;
