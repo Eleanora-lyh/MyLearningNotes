@@ -92,6 +92,19 @@
 	}
 }
 
+/* Show social link labels next to their icons in the left sidebar. */
+.menu-social a {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	color: var(--body-text-color);
+	font-size: 1.35rem;
+
+	span {
+		transform: translateY(2px);
+	}
+}
+
 /* Align the per-article page view icon and count. */
 .article-pageviews {
 	display: inline-flex;

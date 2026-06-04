@@ -151,7 +151,7 @@ enableEmoji = true
 # 社交链接
 [[menu.social]]
   identifier = "github"
-  name = "GitHub"
+  name = "GitHub: Eleanora-lyh"
   url = "https://github.com/Eleanora-lyh"
   [menu.social.params]
     icon = "brand-github"

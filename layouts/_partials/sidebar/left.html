@@ -53,6 +53,9 @@
                         {{ with $icon }}
                             {{ partial "helper/icon" . }}
                         {{ end }}
+                        {{ with .Name }}
+                            <span>{{ . }}</span>
+                        {{ end }}
                     </a>
                 </li>
             {{ end }}
