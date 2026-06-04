@@ -1,9 +1,8 @@
 /* Place your custom SCSS in HUGO_SITE_FOLDER/assets/scss/custom.scss */
 
-/* Wider article and home layouts on extra-large screens. */
+/* Wider site layouts on extra-large screens. */
 @include respond(xl) {
-	.article-page .container.extended,
-	.template-home .container.extended {
+	.container.extended {
 		width: unquote("min(92vw, 2400px)");
 		max-width: unquote("min(92vw, 2400px)");
 		--left-sidebar-max-width: 12%;
