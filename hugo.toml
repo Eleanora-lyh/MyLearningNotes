@@ -178,6 +178,6 @@ enableEmoji = true
       unsafe = true  # 允许渲染原始HTML，解决表格显示问题
   
   [markup.tableOfContents]
-    startLevel = 2  # 从 H2 开始生成目录
+    startLevel = 1  # 从 H1 开始生成目录，保持与笔记大纲一致
     endLevel = 4    # 到 H4 结束
     ordered = false # 使用无序列表

@@ -201,20 +201,6 @@ SELECT
     RANK() OVER (PARTITION BY product_id ORDER BY amount DESC) AS sales_rank
 FROM orders;
 ```
-
-<style>
-a {
- text-decoration: none;
- color: #464feb;
-}
-tr th, tr td {
- border: 1px solid #e6e6e6;
-}
-tr th {
- background-color: #f5f5f5;
-}
-</style>
-
 ---
 
 ## 四、条件函数（Conditional Functions）
