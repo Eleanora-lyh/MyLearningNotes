@@ -25,13 +25,17 @@
 	}
 }
 
-.site-total-views {
-	display: inline-flex;
-	align-items: center;
-	gap: 4px;
+.site-statistics {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
 	color: var(--body-text-color);
 	font-size: 1.35rem;
 	line-height: 1.4;
+
+	span {
+		font-size: inherit;
+	}
 }
 
 .article-pageviews {

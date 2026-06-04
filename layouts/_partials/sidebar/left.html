@@ -27,8 +27,13 @@
             <h1 class="site-name"><a href="{{ .Site.Home.RelPermalink }}">{{ .Site.Title }}</a></h1>
             <h2 class="site-description">{{ .Site.Params.sidebar.subtitle }}</h2>
             {{ if .IsHome }}
-                <div class="site-total-views" id="busuanzi_container_site_pv">
-                    总阅读量 <span id="busuanzi_value_site_pv"></span> 次
+                <div class="site-statistics">
+                    <span id="busuanzi_container_site_pv">
+                        总阅读量 <span id="busuanzi_value_site_pv"></span> 次
+                    </span>
+                    <span id="busuanzi_container_site_uv">
+                        总访客数 <span id="busuanzi_value_site_uv"></span> 人次
+                    </span>
                 </div>
             {{ end }}
         </div>
