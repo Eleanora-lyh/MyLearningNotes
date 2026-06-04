@@ -43,10 +43,10 @@ enableEmoji = true
     customText = ""
 
   [params.sidebar]
-    emoji = "📘"
+    emoji = ""
     subtitle = "记录学习过程中的点滴"
     compact = false
-    avatar = ""
+    avatar = "img/whitebear_read_blue.png"
 
   # Stack 主题的组件配置。切换主题时只需要替换本节，不再依赖根目录 layouts 覆盖件。
   [params.widgets]
