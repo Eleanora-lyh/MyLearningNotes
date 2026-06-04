@@ -1,8 +1,11 @@
 <article>
-    <a href="{{ .RelPermalink }}">
+    {{/* Keep links separate so translation links can be clicked without nesting anchors. */}}
+    <div class="compact-article-card">
         <div class="article-details">
             <h2 class="article-title">
-                {{- .Title -}}
+                <a href="{{ .RelPermalink }}">
+                    {{- .Title -}}
+                </a>
             </h2>
             
             {{- $description := .Params.description -}}
@@ -10,7 +13,10 @@
             {{- if $IsTerm -}}
                 {{- $description = $description | default (T "list.page" (len .Pages)) -}}
             {{- end -}}
-            {{- if or $description (not .Date.IsZero) -}}
+            {{- $showReadingTime := .Params.readingTime | default (.Site.Params.article.readingTime) -}}
+            {{- $showDate := not .Date.IsZero -}}
+            {{- $showTranslations := .IsTranslated -}}
+            {{- if or $description $showDate $showReadingTime $showTranslations -}}
                 {{/* 
                     If it's a term, the date is extracted from the first page of the collection, which is not very useful.
                     In that case, we prefer to display the description (if set), or the number of pages within the collection.
@@ -18,10 +24,36 @@
                 <footer class="article-meta">
                     {{- if or $IsTerm .Date.IsZero -}}
                         <span class="article-description">{{- $description -}}</span>
-                    {{- else if not .Date.IsZero -}}
-                        <time datetime="{{ .Date.Format "2006-01-02T15:04:05Z07:00" }}">
-                            {{- .Date | time.Format .Site.Params.dateFormat.published -}}
-                        </time>
+                    {{- else -}}
+                        {{- if or $showDate $showReadingTime -}}
+                            <div class="inline-meta">
+                                {{- if $showDate -}}
+                                    {{ partial "helper/icon" "date" }}
+                                    <time class="article-time--published" datetime="{{ .Date.Format "2006-01-02T15:04:05Z07:00" }}">
+                                        {{- .Date | time.Format .Site.Params.dateFormat.published -}}
+                                    </time>
+                                {{- end -}}
+
+                                {{- if $showReadingTime -}}
+                                    {{ partial "helper/icon" "clock" }}
+                                    <span class="article-word-count">
+                                        {{ T "article.wordCount" .WordCount }}
+                                    </span>
+                                    <time class="article-time--reading">
+                                        {{ T "article.readingTime" .ReadingTime }}
+                                    </time>
+                                {{- end -}}
+                            </div>
+                        {{- end -}}
+
+                        {{- if $showTranslations -}}
+                            <div class="inline-meta">
+                                {{ partial "helper/icon" "language" }}
+                                {{- range .Translations -}}
+                                    <a href="{{ .RelPermalink }}" class="link">{{ .Language.Label }}</a>
+                                {{- end -}}
+                            </div>
+                        {{- end -}}
                     {{- end }}
                 </footer>
             {{- end -}}
@@ -29,7 +61,7 @@
 
         {{- $image := partial "helper/image" (dict "Image" .Params.image "Resources" .Resources "Context" .) -}}
         {{ if $image }}
-        <div class="article-image">
+        <a class="article-image" href="{{ .RelPermalink }}">
             {{ partial "helper/thumbnail-image" (dict 
                 "Resource" $image.Resource
                 "Width" 60
@@ -43,7 +75,7 @@
                     "height" $image.Height
                 )
             ) }}
-        </div>
+        </a>
         {{ end }}
-    </a>
+    </div>
 </article>

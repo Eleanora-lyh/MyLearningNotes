@@ -129,11 +129,15 @@
     --image-size: var(--article-compact-image-size);
 
     article {
-        & > a {
+        // .compact-article-card replaces the full-card anchor when card metadata contains links.
+        & > a,
+        & > .compact-article-card {
             display: flex;
             align-items: center;
             padding: var(--small-card-padding);
             gap: var(--spacing-md);
+            width: 100%;
+            box-sizing: border-box;
         }
 
         &:not(:last-of-type) {
