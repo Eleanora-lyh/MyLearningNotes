@@ -48,6 +48,9 @@
 
                 {{ if $showReadingTime }}
                     {{ partial "helper/icon" "clock" }}
+                    <span class="article-word-count">
+                        {{ T "article.wordCount" $Page.WordCount }}
+                    </span>
                     <time class="article-time--reading">
                         {{ T "article.readingTime" $Page.ReadingTime }}
                     </time>
@@ -55,6 +58,7 @@
 
                 {{ if $showPageViews }}
                     <span class="article-pageviews" id="busuanzi_container_page_pv">
+                        {{ partial "helper/icon" "eye" }}
                         <span id="busuanzi_value_page_pv"></span> {{ cond (eq $Page.Site.Language.Lang "en") "views" "次阅读" }}
                     </span>
                 {{ end }}

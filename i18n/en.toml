@@ -1,0 +1,4 @@
+[article]
+    [article.wordCount]
+        one   = "{{ .Count }} word in total"
+        other = "{{ .Count }} words in total"

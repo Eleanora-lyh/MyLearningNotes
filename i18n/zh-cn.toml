@@ -1,0 +1,2 @@
+[article]
+    wordCount = "全文共计{{ .Count }}字"
