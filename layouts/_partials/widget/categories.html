@@ -1,0 +1,47 @@
+{{- $context := .Context -}}
+{{- $params := merge (dict "title" (T "widget.categoriesCloud.title") "icon" "categories") .Params -}}
+{{- $taxonomy := index $context.Site.Taxonomies "categories" -}}
+{{- $taxonomyPage := $taxonomy.Page -}}
+{{- $widgetTitle := $params.title -}}
+{{- $limit := default 10 $params.limit -}}
+{{- $icon := default "categories" $params.icon -}}
+{{- $showLink := default true $params.showLink -}}
+{{- $CategoryColorPalette := $context.Site.Params.categoryColorPalette | default (slice) -}}
+{{- $CategoryColorText := $context.Site.Params.categoryColorText | default "#ffffff" -}}
+
+<section class="widget tagCloud">
+    <div class="widget-icon">
+        {{ partial "helper/icon" $icon }}
+    </div>
+    <h2 class="widget-title section-title">
+        {{ if and $showLink $taxonomyPage }}
+            <a href="{{ $taxonomyPage.RelPermalink }}">
+                {{ $widgetTitle }}
+            </a>
+        {{ else }}
+            {{ $widgetTitle }}
+        {{ end }}
+    </h2>
+
+    <div class="tagCloud-tags">
+        {{ range first $limit $taxonomy.ByCount }}
+            {{ $CategoryTitle := .Page.LinkTitle }}
+            {{ $color := partial "helper/color-from-str" $CategoryTitle }}
+            {{ $BackgroundColor := default $color.BackgroundColor .Page.Params.style.background }}
+            {{ $TextColor := default $color.TextColor .Page.Params.style.color }}
+            {{/* Sidebar categories are already sorted by article count; use that rank for palette color. */}}
+            {{ if gt (len $CategoryColorPalette) 0 }}
+                {{ range $Index, $Term := $taxonomy.ByCount }}
+                    {{ if eq $Term.Page.LinkTitle $CategoryTitle }}
+                        {{ $BackgroundColor = index $CategoryColorPalette (mod $Index (len $CategoryColorPalette)) }}
+                        {{ $TextColor = $CategoryColorText }}
+                    {{ end }}
+                {{ end }}
+            {{ end }}
+            <a href="{{ .Page.RelPermalink }}" data-category="{{ $CategoryTitle }}" style="background-color: {{ $BackgroundColor | safeCSS }}; color: {{ $TextColor | safeCSS }};">
+                <span>{{ .Page.Title }}</span>
+                <small>{{ len .Pages }}</small>
+            </a>
+        {{ end }}
+    </div>
+</section>
