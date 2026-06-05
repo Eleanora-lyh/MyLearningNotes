@@ -1,13 +1,26 @@
 {{- $IsList := .IsList -}}
 {{- $Page := .Page -}}
+{{- $CategoryColorPalette := $Page.Site.Params.categoryColorPalette | default (slice) -}}
+{{- $CategoryColorText := $Page.Site.Params.categoryColorText | default "#ffffff" -}}
+{{- $CategoryTermsByCount := (index $Page.Site.Taxonomies "categories").ByCount -}}
 <div class="article-details">
     {{ if $Page.Params.categories }}
     <header class="article-category">
         {{ range ($Page.GetTerms "categories") }}
+            {{ $CategoryTitle := .LinkTitle }}
             {{ $color := partial "helper/color-from-str" .LinkTitle }}
             {{ $BackgroundColor := default $color.BackgroundColor .Params.style.background }}
             {{ $TextColor := default $color.TextColor .Params.style.color }}
-            <a href="{{ .RelPermalink }}" style="background-color: {{ $BackgroundColor | safeCSS }}; color: {{ $TextColor | safeCSS }};">
+            {{/* Keep article category badges in sync with category count ranking. */}}
+            {{ if gt (len $CategoryColorPalette) 0 }}
+                {{ range $Index, $Term := $CategoryTermsByCount }}
+                    {{ if eq $Term.Page.LinkTitle $CategoryTitle }}
+                        {{ $BackgroundColor = index $CategoryColorPalette (mod $Index (len $CategoryColorPalette)) }}
+                        {{ $TextColor = $CategoryColorText }}
+                    {{ end }}
+                {{ end }}
+            {{ end }}
+            <a href="{{ .RelPermalink }}" data-category="{{ .LinkTitle }}" style="background-color: {{ $BackgroundColor | safeCSS }}; color: {{ $TextColor | safeCSS }};">
                 {{ .LinkTitle }}
             </a>
         {{ end }}

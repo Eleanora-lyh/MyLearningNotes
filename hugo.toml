@@ -38,6 +38,10 @@ enableEmoji = true
   author = "Eleanora"
   mainSections = ["posts"]
   rssFullContent = true
+  # 分类徽标统一配色：文章卡片、侧边栏 Categories、/categories/ 页面都会读取这里。
+  # 分类按文章数倒序取色：文章数最多的分类使用第一个颜色，颜色不够时循环取色。
+  categoryColorPalette = ["#9b98f1", "#9ad4f1", "#9ef1ca", "#e8b2b7", "#ffd35d", "#88c3c3", "#7066c5"]
+  categoryColorText = "#ffffff"
 
   # Stack 主题使用 article.toc 控制文章内目录，使用 widgets.page 控制侧边栏目录。
   [params.article]

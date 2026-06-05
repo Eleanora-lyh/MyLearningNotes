@@ -56,26 +56,49 @@
 	}
 }
 
-/* Unify category badge colors on article lists and article pages. */
-.template-home .article-list .article-category a,
-.article-page .main-article .article-header .article-category a {
-	background-color: #9b98f1 !important;
-	color: #fff !important;
+/* Category badge colors are assigned from params.categoryColorPalette in hugo.toml. */
+.article-category a {
+	color: #fff;
 }
 
-/* Unify tag badge colors on article lists and article pages. */
+/* Strengthen category badge hover contrast. */
+.article-category a:hover {
+	color: #ffffff !important;
+	filter: brightness(0.94);
+}
+
+/* Keep article card and article page tag badges distinct from category badges. */
 .template-home .article-list .article-tags a,
 .article-page .main-article .article-tags a {
 	background-color: #91c3fd !important;
 	box-shadow: 0 -2px 0 rgba(210, 236, 255, 0.35) inset;
 }
 
-/* Strengthen tag hover contrast while preserving the Stack inset effect. */
 .template-home .article-list .article-tags a:hover,
 .article-page .main-article .article-tags a:hover {
 	background-color: #78b8f6 !important;
 	box-shadow: 0 calc(-1rem * var(--article-line-height)) 0 rgba(210, 236, 255, 0.45) inset !important;
 	color: #ffffff !important;
+}
+
+/* Category buttons may include article counts in sidebar and taxonomy views. */
+.tagCloud-tags a[data-category] {
+	display: inline-flex;
+	align-items: center;
+	gap: 8px;
+
+	small {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		min-width: 22px;
+		padding: 2px 7px;
+		border-radius: 999px;
+		background: rgba(255, 255, 255, 0.28);
+		color: inherit;
+		font-size: 1.1rem;
+		font-weight: 700;
+	}
 }
 
 /* Render the tags taxonomy page as a dense button cloud. */
@@ -85,7 +108,7 @@
 	.tagCloud-tags {
 		gap: 10px;
 
-		a {
+			a {
 			display: inline-flex;
 			align-items: center;
 			gap: 8px;
@@ -93,19 +116,6 @@
 			font-size: 1.35rem;
 			line-height: 1.2;
 			white-space: nowrap;
-
-			small {
-				display: inline-flex;
-				align-items: center;
-				justify-content: center;
-				min-width: 22px;
-				padding: 2px 7px;
-				border-radius: 999px;
-				background: #9b98f1;
-				color: var(--accent-color-text);
-				font-size: 1.1rem;
-				font-weight: 700;
-			}
 		}
 	}
 }

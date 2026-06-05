@@ -38,16 +38,40 @@
         </div>
     </header>
 
-    {{- if eq .Data.Plural "tags" -}}
-        {{/* Render tags as a dense cloud instead of the default compact list. */}}
+    {{- if or (eq .Data.Plural "tags") (eq .Data.Plural "categories") -}}
+        {{/* Render tags and categories as dense button clouds instead of the default compact list. */}}
         {{- $paginator := partial "helper/paginator.html" . -}}
-        <section class="taxonomy-cloud tagCloud">
+        {{- $isCategories := eq .Data.Plural "categories" -}}
+        {{- $CategoryColorPalette := .Site.Params.categoryColorPalette | default (slice) -}}
+        {{- $CategoryColorText := .Site.Params.categoryColorText | default "#ffffff" -}}
+        {{- $CategoryTermsByCount := (index .Site.Taxonomies "categories").ByCount -}}
+        <section class="taxonomy-cloud tagCloud{{ if $isCategories }} taxonomy-cloud--categories{{ end }}">
             <div class="tagCloud-tags">
-                {{ range $paginator.Pages }}
-                    <a href="{{ .RelPermalink }}">
-                        <span>{{ .Title }}</span>
-                        <small>{{ len .Pages }}</small>
-                    </a>
+                {{ range cond $isCategories $CategoryTermsByCount $paginator.Pages }}
+                    {{ if $isCategories }}
+                        {{ $CategoryTitle := .Page.LinkTitle }}
+                        {{ $color := partial "helper/color-from-str" $CategoryTitle }}
+                        {{ $BackgroundColor := default $color.BackgroundColor .Page.Params.style.background }}
+                        {{ $TextColor := default $color.TextColor .Page.Params.style.color }}
+                        {{/* /categories/ is sorted by article count; use that rank for palette color. */}}
+                        {{ if gt (len $CategoryColorPalette) 0 }}
+                            {{ range $Index, $Term := $CategoryTermsByCount }}
+                                {{ if eq $Term.Page.LinkTitle $CategoryTitle }}
+                                    {{ $BackgroundColor = index $CategoryColorPalette (mod $Index (len $CategoryColorPalette)) }}
+                                    {{ $TextColor = $CategoryColorText }}
+                                {{ end }}
+                            {{ end }}
+                        {{ end }}
+                        <a href="{{ .Page.RelPermalink }}" data-category="{{ $CategoryTitle }}" style="background-color: {{ $BackgroundColor | safeCSS }}; color: {{ $TextColor | safeCSS }};">
+                            <span>{{ .Page.Title }}</span>
+                            <small>{{ len .Pages }}</small>
+                        </a>
+                    {{ else }}
+                        <a href="{{ .RelPermalink }}">
+                            <span>{{ .Title }}</span>
+                            <small>{{ len .Pages }}</small>
+                        </a>
+                    {{ end }}
                 {{ end }}
             </div>
         </section>
