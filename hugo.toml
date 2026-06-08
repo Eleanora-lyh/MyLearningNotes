@@ -48,7 +48,7 @@ enableEmoji = true
     toc = true
     readingTime = true
     headingAnchor = false
-    math = false
+    math = true
 
     [params.article.list]
       showTags = true

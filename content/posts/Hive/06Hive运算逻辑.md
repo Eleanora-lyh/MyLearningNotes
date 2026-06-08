@@ -1,13 +1,11 @@
 ---
-title: "【七】Hive 运算逻辑：数学 / 逻辑 / 条件 / 日期 / 字符串函数"
-date: 2026-05-24T21:19:27+08:00
+title: "【六】Hive 运算逻辑：数学 / 逻辑 / 条件 / 日期 / 字符串函数"
+date: 2026-05-20T22:47:22+08:00
 draft: false
 tags: ["Hive", "运算符", "条件函数", "日期函数", "字符串函数"]
-categories: ["数据仓库"]
+categories: ["Hive"]
 description: "全面梳理 Hive 的数学运算、逻辑运算、条件函数（IF/CASE/COALESCE/NVL）、日期函数（时间戳互转/加减/截断）以及字符串函数（截取/拼接/正则/JSON 解析）的语法与易错点"
 ---
-
-Hive运算
 
 ## 一、数学运算（Arithmetic Operations）
 
@@ -184,7 +182,9 @@ FROM employees
 GROUP BY department;
 ```
 
-### 3.3 窗口计算
+### 3.3 窗口计算（具体详见另一篇：Hive函数）
+
+[【七】Hive 函数：聚合 / 统计 / 分位数 / 集合 / 高级分组](https://eleanora-lyh.github.io/MyLearningNotes/posts/hive/07hive%E5%87%BD%E6%95%B0/)
 
 ```sql
 -- 窗口函数（分析函数）
@@ -201,6 +201,7 @@ SELECT
     RANK() OVER (PARTITION BY product_id ORDER BY amount DESC) AS sales_rank
 FROM orders;
 ```
+
 ---
 
 ## 四、条件函数（Conditional Functions）

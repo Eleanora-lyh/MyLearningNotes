@@ -1,6 +1,7 @@
 ---
-title: "【六】Hive 函数：聚合 / 统计 / 分位数 / 集合 / 高级分组"
-date: 2026-05-20T22:47:22+08:00
+title: "【七】Hive 函数：聚合 / 统计 / 分位数 / 集合 / 高级分组"
+date: 2026-05-24T21:19:27+08:00
+lastmod: 2026-06-08T15:08:34+08:00
 draft: false
 tags: ["Hive", "聚合函数", "统计函数", "分位数", "GROUPING SETS"]
 categories: ["Hive"]
@@ -190,21 +191,22 @@ GROUP BY dept_id;
 
 ## 1、总体方差/样本方差
 
-```sql
-总体方差: var_pop(col)
-样本方差: var_samp(col)
-```
+- 总体方差(Population Variance)：`var_pop(col)`
+
+- 样本方差(Sample Variance)： `var_samp(col)`
 
 **方差**是衡量一组数据离散程度（波动大小）的核心统计指标。它计算的是每个数据点与平均值之间距离的平方的平均值。
 
 方差越大，数据越分散、波动越大；方差越小，数据越集中、越稳定。
 
 $$
-\begin{align}
-\text{总体方差(Population Variance)} = \frac{\sum_{i=1}^{N}(x_i - \mu)^2}{N}\text{    N为总体数据个数}\\
-\text{样本方差(Sample Variance)} = \frac{\sum_{i=1}^{n}(x_i - \bar{x})^2}{n-1}\text{    n为样本数据个数}
-\end{align}
+\begin{aligned}
+\operatorname{总体方差：VarPop}(x) &= \frac{\sum_{i=1}^{N}(x_i - \mu)^2}{N} \\\\
+\operatorname{样本方差：VarSamp}(x) &= \frac{\sum_{i=1}^{n}(x_i - \bar{x})^2}{n - 1}
+\end{aligned}
 $$
+
+其中：`N` 为总体数据个数，`n` 为样本数据个数。
 
 **关键区别**：样本方差的分母用 `n-1`（贝塞尔校正），这是为了得到对总体方差更准确的无偏估计。大数据分析中，我们通常处理的是样本数据，所以**更常用 `var_samp()`**。
 
@@ -232,10 +234,9 @@ WHERE dt BETWEEN '2023-10-01' AND '2023-10-31';
 
 ## 2、总体标准差/样本标准差
 
-```sql
-总体标准差: stddev_pop(col)
-样本标准差: stddev_samp(col)
-```
+- 总体标准差( Population Standard Deviation )： `stddev_pop(col)`
+
+- 样本标准差( Sample Standard Deviation )： `stddev_samp(col)`
 
 **标准差**是方差的平方根，它衡量数据点相对于平均值的平均离散程度。与方差相比，标准差的单位与原数据一致，因此更直观、更易于业务解释。
 
@@ -243,10 +244,12 @@ WHERE dt BETWEEN '2023-10-01' AND '2023-10-31';
 
 $$
 \begin{align}
-\text{总体标准差 ( Population Standard Deviation ) σ} = \sqrt{\frac{\sum_{i=1}^{N}(x_i - \mu)^2}{N}}\text{    N为总体数据个数}\\
-\text{样本标准差 ( Sample Standard Deviation ) s} = \sqrt{\frac{\sum_{i=1}^{n}(x_i - \bar{x})^2}{n-1}}\text{    n为样本数据个数}
+    {总体标准差： σ} = \sqrt{\frac{\sum_{i=1}^{N}(x_i - \mu)^2}{N}}\\\\
+\text{样本标准差： s} = \sqrt{\frac{\sum_{i=1}^{n}(x_i - \bar{x})^2}{n-1}}
 \end{align}
 $$
+
+其中：`N` 为总体数据个数，`n` 为样本数据个数。
 
 📊 标准差 vs 方差（关键区别）
 
@@ -344,21 +347,22 @@ WHERE response_time_ms >
 
 ## 3、总体协方差/样本协方差
 
-```sql
-总体协方差: covar_pop(col1, col2)
-样本协方差: covar_samp(col1, col2)
-```
+- 总体协方差 Population Covariance ：`covar_pop(col1, col2)`
+
+- 样本协方差 Population Covariance ：`covar_samp(col1, col2)`
 
 **协方差**衡量两个变量之间的**协同变化关系**。它告诉你：当一个变量变化时，另一个变量是倾向于同向变化还是反向变化。
 
 协方差的正负表示变化方向，绝对值大小表示变化关系的强弱（但受数据尺度影响）。
 
 $$
-\begin{align}
-\text{总体标准差 ( Population Covariance ) cov(x,y)} = \frac{\sum_{i=1}^{N}(x_i - \mu_x)(y_i - \mu_y)}{N}\text{    N为总体数据个数}\\
-\text{样本标准差 ( Sample Covariancen ) cov(x,y)} = \frac{\sum_{i=1}^{n}(x_i - \bar{x})(y_i - \bar{y})}{n-1}\text{    n为样本数据个数}
-\end{align}
+\begin{aligned}
+\operatorname{总体标准差：CovPop}(x,y) &= \frac{\sum_{i=1}^{N}(x_i - \mu_x)(y_i - \mu_y)}{N} \\\\
+\operatorname{样本标准差：CovSamp}(x,y) &= \frac{\sum_{i=1}^{n}(x_i - \bar{x})(y_i - \bar{y})}{n - 1}
+\end{aligned}
 $$
+
+其中：`N` 为总体数据个数，`n` 为样本数据个数。
 
 📈 协方差的三种情况
 
@@ -441,23 +445,17 @@ ORDER BY ABS(COVAR_SAMP(feature_value, target_value)) DESC;
 
 **相关系数 = 标准化的协方差。值越接近±1，线性关系越强；值越接近0，线性关系越弱。**
 
-
+**皮尔逊相关系数（Correlation Coefficient）：**
 
 $$
-\begin{align}
-\text{皮尔逊相关系数 ( Correlation Coefficient ): } r(X,Y)
-= \frac{\text{cov}(x,y)}{\sigma_x \sigma_y}
-\quad \text{ 其中：cov(x,y)为协方差，σ为总体标准}\\
-=
-\frac{\sum_{i=1}^{n}(x_i - \bar{x})(y_i - \bar{y})}
-     {\sqrt{\sum_{i=1}^{n}(x_i - \bar{x})^2} \cdot 
-      \sqrt{\sum_{i=1}^{n}(y_i - \bar{y})^2}}
-\quad \text{其中: } -1 \leq r \leq 1
-
-\end{align}
+\begin{aligned}
+r(X,Y) &= \frac{\operatorname{cov}(x,y)}{\sigma_x \sigma_y} \\\\
+&= \frac{\sum_{i=1}^{n}(x_i - \bar{x})(y_i - \bar{y})}
+{\sqrt{\sum_{i=1}^{n}(x_i - \bar{x})^2} \cdot \sqrt{\sum_{i=1}^{n}(y_i - \bar{y})^2}}
+\end{aligned}
 $$
 
-
+其中：`cov(x,y)` 为协方差，`σ` 为总体标准差，$-1 \leq r \leq 1$。
 
 ### 相关系数 vs 协方差（关键升级）
 
