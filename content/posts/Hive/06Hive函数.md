@@ -441,6 +441,8 @@ ORDER BY ABS(COVAR_SAMP(feature_value, target_value)) DESC;
 
 **相关系数 = 标准化的协方差。值越接近±1，线性关系越强；值越接近0，线性关系越弱。**
 
+
+
 $$
 \begin{align}
 \text{皮尔逊相关系数 ( Correlation Coefficient ): } r(X,Y)
@@ -454,6 +456,8 @@ $$
 
 \end{align}
 $$
+
+
 
 ### 相关系数 vs 协方差（关键升级）
 
