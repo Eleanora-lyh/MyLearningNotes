@@ -81,8 +81,9 @@
 	color: #ffffff !important;
 }
 
-/* Category buttons may include article counts in sidebar and taxonomy views. */
-.tagCloud-tags a[data-category] {
+/* Taxonomy buttons may include article counts in sidebar and taxonomy views. */
+.tagCloud-tags a[data-category],
+.tagCloud-tags a[data-tag] {
 	display: inline-flex;
 	align-items: center;
 	gap: 8px;
@@ -99,6 +100,11 @@
 		font-size: 1.1rem;
 		font-weight: 700;
 	}
+}
+
+.tagCloud-tags a[data-tag] small {
+	background: #9b98f1;
+	color: var(--accent-color-text);
 }
 
 /* Render the tags taxonomy page as a dense button cloud. */

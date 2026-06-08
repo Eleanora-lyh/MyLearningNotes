@@ -67,7 +67,7 @@
                             <small>{{ len .Pages }}</small>
                         </a>
                     {{ else }}
-                        <a href="{{ .RelPermalink }}">
+                        <a href="{{ .RelPermalink }}" data-tag="{{ .LinkTitle }}">
                             <span>{{ .Title }}</span>
                             <small>{{ len .Pages }}</small>
                         </a>

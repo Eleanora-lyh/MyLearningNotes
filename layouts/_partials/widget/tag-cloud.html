@@ -1,0 +1,32 @@
+{{- $context := .Context -}}
+{{- $params := merge (dict "title" (T "widget.tagCloud.title") "icon" "tag") .Params -}}
+{{- $taxonomy := index $context.Site.Taxonomies "tags" -}}
+{{- $taxonomyPage := $taxonomy.Page -}}
+{{- $widgetTitle := $params.title -}}
+{{- $limit := default 10 $params.limit -}}
+{{- $icon := default "tag" $params.icon -}}
+{{- $showLink := default true $params.showLink -}}
+
+<section class="widget tagCloud">
+    <div class="widget-icon">
+        {{ partial "helper/icon" $icon }}
+    </div>
+    <h2 class="widget-title section-title">
+        {{ if and $showLink $taxonomyPage }}
+            <a href="{{ $taxonomyPage.RelPermalink }}">
+                {{ $widgetTitle }}
+            </a>
+        {{ else }}
+            {{ $widgetTitle }}
+        {{ end }}
+    </h2>
+
+    <div class="tagCloud-tags">
+        {{ range first $limit $taxonomy.ByCount }}
+            <a href="{{ .Page.RelPermalink }}" data-tag="{{ .Page.LinkTitle }}">
+                <span>{{ .Page.Title }}</span>
+                <small>{{ len .Pages }}</small>
+            </a>
+        {{ end }}
+    </div>
+</section>
