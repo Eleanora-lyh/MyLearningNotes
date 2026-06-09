@@ -22,11 +22,11 @@ enableEmoji = true
     weight = 2
     contentDir = "content"
 
-# 日期配置：自动从文件系统获取日期
-# enableGitInfo = true  # 设为 true 可从 Git 提交历史获取日期
+# 日期配置：发布日期优先使用文章 front matter，更新时间优先使用 Git 最后提交时间
+enableGitInfo = true
 
 [frontmatter]
-  date = [":git", ":default", ":fileModTime"]  # date 优先使用 Git 首次提交
+  date = [":default", ":git", ":fileModTime"]  # date 优先使用文章发布日期
   lastmod = [":git", ":fileModTime", ":default"]  # lastmod 使用最后提交时间
   publishDate = [":default"]
 
