@@ -1,35 +1,34 @@
 ---
 title: "关于"
-date: 2024-01-01T10:00:00+08:00
+date: 2025-05-01T10:15:36+08:00
 draft: false
 ---
 
 ## 关于我
 
-你好！我是一个热爱学习的技术爱好者。
+你好！我是一个热爱学习的技术爱好者。目前正在学习大数据领域相关知识，想从.net开发工程师转为大数据开发工程师。
 
 ## 关于这个博客
 
-这个博客是我的学习笔记集合，主要记录：
+这个博客是我的学习笔记集合，主要包括：
 
-- 💻 编程技术
-- 📚 学习心得
-- 🔧 工具使用
-- 🎯 项目经验
+- 💻 大数据相关技术栈的学习记录
+- 📚 准备的面经
+- 🔧 面试实战记录
 
 ## 技术栈
 
 我正在学习和使用的技术：
-
-- **前端**: HTML, CSS, JavaScript
-- **后端**: Python, Node.js
-- **工具**: Git, Docker, VS Code
-- **其他**: Hugo, Markdown
+- Linux
+- Hadoop: HDFS, Yarn, MapReduce
+- Hive
+- Flink
+- Kafka
 
 ## 联系方式
 
 - GitHub: [Eleanora-lyh](https://github.com/Eleanora-lyh)
-- Email: your.email@example.com
+- Email: 1214591472@qq.com
 
 ---
 

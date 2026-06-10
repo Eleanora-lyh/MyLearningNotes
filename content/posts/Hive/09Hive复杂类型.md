@@ -35,6 +35,14 @@ Hive 除了支持基础数据类型（INT、STRING、DOUBLE 等）之外，还�
 
 # 二、ARRAY
 
+Hive 的一种复杂数据类型，表示“数组/列表”，常见用途是把多个值放到一个字段里，后续用 `explode` 展开
+
+`array(1, 2, 3)`表示一个数组`[1, 2, 3]`,它本身还是 一行里的一个字段值，结果是 1 行 1 列：
+
+| nums      |
+| --------- |
+| `[1,2,3]` |
+
 ### 2.1 建表
 
 ```sql
@@ -46,7 +54,7 @@ CREATE TABLE user_scores (
 
 ### 2.2 访问
 
-下标从 0 开始
+下标从 0 开始，array 常和 explode 搭配
 
 ```sql
 -- 1. 访问特定元素（下标从0开始）
@@ -130,8 +138,6 @@ SELECT details.name, details.age FROM employees;
 ## 4.3 统计
 
 STRUCT 字段数是**建表时固定的**，没有运行时的 size 函数。如果一定要拿字段数，可以通过 `DESCRIBE` 或元数据查询，但实际工程中很少这么做
-
----
 
 ---
 
@@ -1182,6 +1188,63 @@ LATERAL VIEW OUTER explode(page_views) pv AS page_view
 LATERAL VIEW OUTER explode(clicks) c AS click
 WHERE click.timestamp > 1673712000;
 ```
+
+## 6.4 stack
+
+`stack(n, expr1, expr2, ..., exprk)` 是 Hive 的表生成函数。它的作用是：把后面的表达式按照指定列数切分，展开成 `n` 行。
+
+示例：
+
+```sql
+SELECT stack(3, 'math', 90, 'english', 80, 'history', 70) AS (subject, score);
+```
+
+- `AS (subject, score)`定义了输出有两列。
+
+- `N=3`表示要生成3行。
+
+- 因此，需要的总参数数量为 `3行 * 2列 = 6个`。
+
+- 你提供的6个参数 `('math', 90, 'english', 80, 'history', 70)`被依次填充：
+  
+  - 第1行: (`'math'`, `90`)
+  
+  - 第2行: (`'english'`, `80`)
+  
+  - 第3行: (`'history'`, `70`)
+
+| subject | score |
+| ------- | ----- |
+| math    | 90    |
+| english | 80    |
+| history | 70    |
+
+**示例2**
+
+```sql
+SELECT stack(10, 0,1,2,3,4,5,6,7,8,9) AS d;
+```
+
+- `AS d`定义了输出只有一列（列名为 `d`）。
+
+- `N=10`表示要生成10行。
+
+- 因此，需要的总参数数量为 `10行 * 1列 = 10个`。
+
+- 你提供的10个参数 `(0,1,2,3,4,5,6,7,8,9)`被依次填充到这一列的10行中。
+
+| d   |
+| --- |
+| 0   |
+| 1   |
+| 2   |
+| 3   |
+| 4   |
+| 5   |
+| 6   |
+| 7   |
+| 8   |
+| 9   |
 
 # 七、Spark 3.0+ 的新语法 CROSS JOIN UNNEST（推荐）
 
