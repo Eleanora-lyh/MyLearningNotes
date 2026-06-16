@@ -107,7 +107,7 @@ enableGitInfo = true
 # 请将下面的 G-XXXXXXXXXX 替换为你的 Google Analytics Measurement ID
 # 获取地址: https://analytics.google.com/
 [services.googleAnalytics]
-  ID = "G-MV297YCMCZ"  # 例如: "G-XXXXXXXXXX"
+  ID = "G-JQ4TFF8RW7"  # 例如: "G-XXXXXXXXXX"
 
 # 菜单配置
 [[menu.main]]
