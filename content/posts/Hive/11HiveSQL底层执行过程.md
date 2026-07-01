@@ -9,40 +9,39 @@ description: "梳理 Hive SQL 从客户端提交、HiveServer2 接收、Driver �
 
 ---
 
+
+
 首先需要声明一下Hive是运行在Hadoop上层的数据仓库工具，它依赖 HDFS 和 YARN 运行，但不属于 Hadoop 内核，而是 Hadoop 生态圈的重要成员。
 
 - **Hadoop 核心**​ 包含三大组件：**HDFS**（分布式存储）、**YARN**（资源调度）、**MapReduce**（分布式计算框架）。
+  
+  此外Hadoop 还包含 Common 等基础模块，但这里不涉及
 
 - **Metastore** 是 Hive 的元数据管理服务，用于保存表结构、分区、存储位置、文件格式等元数据信息。Metastore 后端通常使用关系型数据库保存这些元数据；本地测试可使用 Derby，生产环境常用 MySQL/PostgreSQL 等外部数据库。
 
-本文讲解 Hive SQL 从客户端提交，到 Hive 编译成内部 QueryPlan，再由执行引擎提交到集群运行的底层过程。
+---
 
-需要说明：本文后半部分主要以 MapReduce 执行引擎为例。如果使用 Tez 或 Spark，Hive 内部编译流程类似，但提交到执行后端和 YARN 的细节不同。
+本文讲解 Hive SQL 从客户端提交，到 Hive 编译成内部 QueryPlan，再由执行引擎提交到集群运行的底层过程，简要概括如下：
 
-下面是提交到Hive的概述图，结合概述图和详细步骤来看
+当 Hive 使用 MapReduce 引擎时，Compiler 会将 SQL 编译成包含 `MapRedTask` 的 Hive QueryPlan。`MapRedTask` 是 Hive 对一个 MapReduce Job 的封装，它携带了本次 SQL 的 Operator Tree、输入输出路径、Shuffle Key、Reducer 数量等信息。
 
-![](./assets/e8ee54e596e52b7143b15258ee7951ed9942ea0a.png)
+Executor 执行 `MapRedTask` 时，会通过 Hadoop API 提交一个Hadoop MapReduce Job。随后 MapReduce 框架根据输入切片、Reducer 数量和 JobConf创建出来运行时任务实例 `MapTask / ReduceTask` 。
+
+`MapTask / ReduceTask`在 YARN Container 中运行，并加载 Hive 的通用 Mapper/Reducer 类执行逻辑来执行 SQL 对应的 Operator Tree。
+
+需要说明：本文主要以 MapReduce 执行引擎为例。如果使用 Tez 或 Spark，Hive 内部编译流程类似，但提交到执行后端和 YARN 的细节不同。
+
+# HQL->QueryPlan概述图
+
+概述图的步骤和标题是一一对应的，所以可以结合后面的详细步骤来看
+
+![](./assets/c4b6faa2cee9dcdb63bc0c9722cde125f5d9c412.png)
 
 # 步骤1：客户端提交 SQL
 
 用户通过 Beeline/JDBC+Hive server2 或 Hive CLI提交 SQL
 
-### 1.1 通过 HiveClient 或Hive CLI 提交SQL
-
-- Hive CLI 是“客户端自己就是 Hive 执行入口，直接在机器上执行：`hive -e "select count(*) from table_name;"`（目前几乎不用）
-
-- Beeline/JDBC 是客户端把 SQL 发给 HiveServer2，由 HiveServer2 代为执行 SQL
-
-SQL：
-
-```sql
-SELECT province, COUNT(*)
-FROM user_log
-WHERE dt = '2026-06-01'
-GROUP BY province;
-```
-
-### 1.2 通过 Beeline/JDBC + Hive Server2 提交SQL
+### 1.1 通过 Beeline/JDBC + Hive Server2 提交SQL
 
 HiveServer2，简称 **HS2**，可以理解为 Hive 的服务端网关（一般绑定 10000端口）
 
@@ -93,6 +92,10 @@ HiveServer2，简称 **HS2**，可以理解为 Hive 的服务端网关（一般�
 | 并发管理           | 多用户同时提交 SQL                                 |
 | 结果返回           | 将查询结果返回给客户端                                 |
 
+### 1.2 通过Hive CLI 提交SQL
+
+- Hive CLI 是“客户端自己就是 Hive 执行入口，直接在机器上执行：`hive -e "select count(*) from table_name;"`（目前几乎不用）
+
 # 步骤2：Driver 内部启动编译
 
 HiveServer2 收到 SQL 后，会在服务端调用 Hive 的 Driver.
@@ -108,12 +111,16 @@ AST：SQL 的语法结构
   ↓
 逻辑计划 / Operator Tree：描述这条 SQL 要做哪些计算
   ↓
-物理执行计划（交给Yarn）
+Hive 内部 QueryPlan
+  ↓
+Executor 调度 Hive Task
+  ↓
+如果是 MapReduce 引擎，MapRedTask 再提交 MR Job 到 YARN
 ```
 
 # 步骤3：COMPILER生成 Hive 内部 QueryPlan
 
-**Compiler** 负责把 SQL 变成物理执行计划，具体包括（注意：这里还不是最终交给Yarn的 Job ）
+**Compiler** 负责把 SQL 变成物理执行计划，具体包括（注意：这里还不是最终交给YARN的 Job ）
 
 ```plain
 Driver传递给Compiler的 SQL 文本
@@ -137,7 +144,7 @@ MapReduce / Tez / Spark 等任务
 
 ### 步骤3.1：Parser（语法解析）
 
-解析 SQL，生成对应的Abstract Syntax Tree(AST)抽象语法树
+解析 SQL，生成对应的Abstract Syntax Tree(AST)抽象语法树 
 
 Parser 会识别出具体子句，并判断语法是否错误：
 
@@ -182,13 +189,9 @@ TOK_QUERY
  │         └── province
 ```
 
-AST 还不是最终执行计划，只是 SQL 的结构化表达。其作用如下：
+AST 还不是最终执行计划，只是 SQL 的结构化表达。
 
-1. **SQL优化**：Hive/Spark SQL在执行前会将SQL语句解析为AST，优化器（如Catalyst）基于AST进行等价变换优化查询。
-
-2. **代码分析**：数据质量工具（如Apache Griffin）用AST分析数据管道代码的逻辑问题。
-
-3. **Flink/Spark作业优化**：执行计划可视化时展示的其实就是AST的变体。
+在 Hive 中，AST 主要作为后续语义分析的输入。Semantic Analyzer 会基于 AST 访问 Metastore，确认表、字段、分区、文件格式、HDFS 路径等信息，然后生成 Hive 内部的逻辑计划 Logical Plan和 Operator Tree。
 
 ### 步骤3.2：Semantic Analyzer（语义分析）
 
@@ -311,7 +314,7 @@ QueryPlan（整条 SQL 的计划封装）
 │   ├── DDLTask（执行 DDL）
 │   ├── ConditionalTask （条件分支任务，例如 MapJoin 选择）
 │   └── 其他 Task
-├── FetchTask（小查询直接拉取结果,不需要其他步骤）
+├── FetchTask（小查询直接拉取结果,不启动 MR/Tez/Spark 计算任务）
 ├── inputs（输入对象，记录读取了哪些表/分区/路径）
 ├── outputs（输出对象，记录写到了哪些表/路径）
 ├── schema（视图，用于结果返回和客户端展示）
@@ -334,7 +337,7 @@ QueryPlan
 
 每个 Task 节点的 `payload` 已经是"面向具体引擎"的了。从上面的示例可以看出`QueryPlan`是整条 SQL 的计划封装，描述整个 SQL 怎么执行。
 
-**QueryPlan**中的入口**rootTasks** 会根据`hive.execution.engine`的值进入不同的**Task DAG**分支，分别是`MapRedTask / TezTask / SparkTask`。每种Task又会对应不同的Work：`MapredWork / TezWork / SparkWork`
+Compiler 在编译阶段会参考 `hive.execution.engine` 等配置，生成不同类型的计算 Task，例如 `MapRedTask`、`TezTask` 或 `SparkTask`。每种Task又会对应不同的Work：`MapredWork / TezWork / SparkWork`
 
 其中**Task DAG**内部的层级可以分为三层：`Task -> Work -> Operator`
 
@@ -364,11 +367,11 @@ Compiler 在编译阶段会参考 `hive.execution.engine` 等配置，生成不�
 
 **不同执行引擎会生成不同的 Task 子类**：
 
-| 引擎             | Task 子类（核心）  | 本质                                                                                                                               |
-| -------------- | ------------ | -------------------------------------------------------------------------------------------------------------------------------- |
-| **MapReduce**​ | `MapRedTask` | MapRedTask -> Hadoop MapReduce Job -> MapTask / ReduceTask<br>内含：Map operator tree / Reduce operator tree、需要的 `JobConf`信息、输入输出路径 |
-| **Tez**​       | `TezTask`    | TezTask -> Tez DAG -> Vertex / Tez Task<br>内含：一个 **Tez DAG 描述**（Vertices / Edges / Vertex config）                                |
-| **Spark**​     | `SparkTask`  | SparkTask -> Spark Job / Stage DAG -> Spark Task<br>内含：SparkWork（RDD action 描述）→ 通过 Hive on Spark 提交                             |
+| 引擎             | Task 子类（核心）  | 本质                                                                                                                                |
+| -------------- | ------------ | --------------------------------------------------------------------------------------------------------------------------------- |
+| **MapReduce**​ | `MapRedTask` | MapRedTask -> Hadoop MapReduce Job -> MapTask / ReduceTask<br/>内含：Map operator tree / Reduce operator tree、需要的 `JobConf`信息、输入输出路径 |
+| **Tez**​       | `TezTask`    | TezTask -> Tez DAG -> Vertex / Tez Task<br/>内含：一个 **Tez DAG 描述**（Vertices / Edges / Vertex config）                                |
+| **Spark**​     | `SparkTask`  | SparkTask -> Spark Job / Stage DAG -> Spark Task<br/>内含：SparkWork（RDD action 描述）→ 通过 Hive on Spark 提交                             |
 
 Hive 的一个 SQL 往往会被拆成多个执行阶段，**Task DAG** 描述 Hive 层 Task 的依赖关系。例如复杂 SQL 可能是：
 
@@ -392,12 +395,12 @@ MapRedTask_B
 
 其他非计算类 Task有：
 
-| Task 类型     | 作用              | 举例                                                                                                             |
-| ----------- | --------------- | -------------------------------------------------------------------------------------------------------------- |
-| `MoveTask`  | 把临时目录结果移动到最终表目录 | INSERT OVERWRITE 通常先写临时目录`/tmp/hive/xxx`<br>成功后再移动到正式表目录：`/warehouse/result_table/`<br>来避免任务失败污染正式目录。          |
-| `StatsTask` | 收集表/分区统计信息      | 统计信息后续可以服务优化器<br>`row count`、`file size`、`partition statistics`<br>`column statistics`                         |
-| `FetchTask` | 小结果直接拉回客户端      | 如果满足条件，Hive 可能不启动 MR/Tez/Spark，<br>而是直接通过 FetchTask 从文件读取少量结果返回客户端<br>例如：`SELECT * FROM small_table LIMIT 10;` |
-| `DDLTask`   | 执行建表、删表等元数据操作   | 直接操作 Metastore/HDFS 元数据<br>`CREATE/DROP/ALTER TABLE`                                                           |
+| Task 类型     | 作用              | 举例                                                                                                               |
+| ----------- | --------------- | ---------------------------------------------------------------------------------------------------------------- |
+| `MoveTask`  | 把临时目录结果移动到最终表目录 | INSERT OVERWRITE 通常先写临时目录`/tmp/hive/xxx`<br/>成功后再移动到正式表目录：`/warehouse/result_table/`<br/>来避免任务失败污染正式目录。          |
+| `StatsTask` | 收集表/分区统计信息      | 统计信息后续可以服务优化器<br/>`row count`、`file size`、`partition statistics`<br/>`column statistics`                         |
+| `FetchTask` | 小结果直接拉回客户端      | 如果满足条件，Hive 可能不启动 MR/Tez/Spark，<br/>而是直接通过 FetchTask 从文件读取少量结果返回客户端<br/>例如：`SELECT * FROM small_table LIMIT 10;` |
+| `DDLTask`   | 执行建表、删表等元数据操作   | 直接操作 Metastore/HDFS 元数据<br/>`CREATE/DROP/ALTER TABLE`                                                            |
 
 rootTasks = MapRedTask时，可能执行的步骤：
 
@@ -551,11 +554,11 @@ pv bigint
 
 用于：
 
-- 返回给客户端
+- 返回给客户端  
 
-- JDBC ResultSet metadata
+- JDBC ResultSet metadata  
 
-- Beeline 展示列名
+- Beeline 展示列名  
 
 - FetchTask 读取结果
 
@@ -612,9 +615,57 @@ queryProperties 记录这条 SQL 的特征，例如：
 
 # 步骤4：Executor 执行计划
 
-步骤3 `COMPLILER` 生成的只是物理执行计划 `QueryPlan` 还只是Hive内部才看的懂的Hive Task+调度上下文，直接交给Hadoop是无法识别的，所以才需要`Driver`内部的`Executor`
+## 步骤3回顾：
 
-`COMPLILER` 编译完成后，把 `QueryPlan` 对象返回给 `Driver`；`Driver` 在执行阶段把这个 `QueryPlan` 交给内部的执行逻辑 `Executor` 去调度，Executor 执行 Hive Task；计算类 Hive Task 内部再调用对应执行后端；执行后端再提交到 YARN。直观的衔接步骤如下
+注意：以下所有内容都是在假设执行引擎是**MapReduce**的前提下展开的
+
+步骤3 `COMPLILER` 会将 SQL 编译成包含`MapRedTask`生成的 `Hive QueryPlan` 这里还只是Hive内部才看的懂的执行说明：Hive Task+调度上下文，直接交给Hadoop是无法识别的，所以才需要`Driver`内部的`Executor`
+
+这个 MapRedTask 是 Hive 对一个 MapReduce Job 的封装，内部包含很多信息，例如：
+
+```plain
+输入表路径
+输出临时目录
+Map 端 Operator Tree
+Reduce 端 Operator Tree
+表的 SerDe 信息
+列信息
+过滤条件
+聚合逻辑
+Join 逻辑
+Group By 逻辑
+Reduce 数量
+Shuffle Key
+JobConf 配置
+```
+
+`COMPLILER` 编译完成后，把 `QueryPlan` 对象返回给 `Driver`；`Driver` 在执行阶段把这个 `QueryPlan` 交给内部的执行逻辑 `Executor` 去调度
+
+## Executor 调度
+
+Executor 执行 `MapRedTask` 时，会通过 Hadoop API 提交一个Hadoop MapReduce Job。随后 MapReduce 框架根据输入切片、Reducer 数量和 JobConf创建出来运行时任务实例 `MapTask / ReduceTask` 。
+
+这里插入一个问题：我们俗称的 Hive on MR 的“MapReduce 程序”在这些步骤的哪里？
+
+如果你自己写 MapReduce 程序，通常是这样：
+
+```java
+Mapper 类
+Reducer 类
+Driver 类
+JobConf 配置
+```
+
+但 Hive 不会为每条 SQL 临时生成一份新的 Java 源码，然后编译成新的 Mapper/Reducer 类，Hive 通常使用的是一套通用的Mapper / Reducer 框架，例如类似：
+
+```java
+ExecMapper
+ExecReducer
+```
+
+**也就是说广义上底层真实操作HDFS的”MapReduce 程序“就在这里，由 Hadoop MapReduce 框架创建出来的运行时任务实例MapTask / ReduceTask = Hive 通用 Mapper/Reducer 类 + 本次 SQL 对应的 Operator Tree + JobConf 配置**
+
+最后Hadoop MapReduce 框架将生成MapTask / ReduceTask提交到 YARN。直观的衔接步骤如下
 
 ```plain
 Driver.compile(sql)
@@ -669,6 +720,12 @@ Executor 执行顺序是：
 4. 全部成功，Driver 标记 SQL 成功
 ```
 
+# QueryPlan->Yarn概述图
+
+当执行引擎选择 MapReduce 时，MR Job 提交到 YARN 后具体运行步骤如下
+
+![](./assets/fe8a4bb3f6369c86cc0f72cbafaaa7d4970cdb86.png)
+
 # 步骤5：YARN 执行 MapReduce Job
 
 YARN 是“全局一套 + 每节点一部分”，在一个 Hadoop/YARN 集群中：
@@ -677,38 +734,49 @@ YARN 是“全局一套 + 每节点一部分”，在一个 Hadoop/YARN 集群�
 
 - HDFS = 决定"数据存在哪、怎么读"
 
-**Yarn中包含如下组成部分：**
+**YARN中包含如下组成部分：**
 
-- **ResourceManager（RM）**：RM 管全局资源，是全局唯一的 *active*主服务（生产一定是 **HA：一个Active RM + 一个Standby RM**）
+- **ResourceManager（RM）**：<mark>RM 管全局资源</mark>，是全局唯一的 *active*主服务（生产一定是 **HA：一个Active RM + 一个Standby RM**）
 
-- **ApplicationMaster（AM）**：AM 管单个应用，现在已知一次 Hive SQL 在 **MapReduce 引擎下**会生成的一个或多个 MapReduce Job，一个 MapReduce Job通常对应一个 YARN Application，这个Application 会创建 且仅创建 1 个 AM 实例。
+- **ApplicationMaster（AM）**：AM 管单个应用，现在已知一次 Hive SQL 在 **MapReduce 引擎下**会生成的一个或多个 MapReduce Job，一个 MapReduce Job通常对应一个 YARN Application，这个 Application 通常由一个正在运行的 AM 负责协调；如果 AM 失败，YARN 可能按配置重试。
   
-  - 它一开始由 **RM** 批准、并经过**NM 在某个节点上拉起的一个 Container 里跑的**。
+  - 一开始由 **RM** 批准、并经过**NM 在某个节点上拉起的一个 Container， AM则会在这个里Container运行**。
   
   - **在 Tez 引擎下**，Hive SQL 通常会被编译成 Tez DAG。Tez DAG 与 YARN Application 的对应关系受 Tez Session 等配置影响，不确定，需要结合具体版本/实现确认。
 
-- **NodeManager（NM）**：NM 管本机资源，每台机器(每个Node)一个的常驻守护进程（daemon），一直活着，负责心跳汇报资源、接RM/AM指令拉起/清理容器
+- **NodeManager（NM）**：<mark>NM 管本机资源</mark>，每台机器(每个Node)一个的常驻守护进程（daemon），一直活着，负责心跳汇报资源、接RM/AM指令拉起/清理容器
 
-- **Container**：Container 是资源槽位，它是 NM 按指令 *临时创建出来的资源沙箱进程* 是 YARN 分配给某个 Application 的资源运行单元，包含内存、vcore、环境变量、本地化资源、启动命令等运行上下文。
+- **Container**：<mark>Container 是资源槽位</mark>，是 YARN 分配给某个 Application 的资源分配单元，包含内存、vcore、环境变量、本地化资源、启动命令等运行上下文。任务(Application)跑完/失败就销毁；一台机器**空闲的时候 container 数量是 0**，不是永远挂着多个 container。
   
-  - 在 MapReduce 场景下，一个 Task Container 通常会启动一个 JVM 来运行 MapTask 或 ReduceTask，任务(Application)跑完/失败就销毁；一台机器**空闲的时候 container 数量是 0**，不是永远挂着多个 container。
+  - YARN Container = 资源分配单位，不等于 JVM。根据执行引擎的不同，Container 里包含的内容也有区别
+    
+    **Task Attempt**​特指一个 Task（Map 任务或 Reduce 任务）的某一次具体执行实例。一个 Container 在同一时刻只会服务于一个 Task Attempt。之所以叫 “Attempt”，是因为分布式系统中任务可能因节点故障、资源竞争等原因失败，系统会多次“尝试”执行同一个 Task，每一次尝试就是一个 Task Attempt。只要有一次 Attempt 成功，这个 Task 就算完成。
+    
+    | 场景                               | Container 里通常跑什么                                  |
+    | -------------------------------- | ------------------------------------------------- |
+    | MapReduce AM Container           | MRAppMaster JVM                                   |
+    | MapReduce Task Container         | YARNChild JVM，里面运行一个 MapTask 或 ReduceTask attempt |
+    | Tez AM Container                 | Tez ApplicationMaster JVM                         |
+    | Tez Task Container               | Tez Container JVM，可复用，执行多个 Tez Task               |
+    | Spark on YARN Executor Container | Executor JVM，里面可以并发/连续执行多个 Spark Task             |
+    | 非 Java 程序                        | Python / Shell / C++ / 其他进程                       |
 
 **Container里的MapTask/ReduceTask 是真正干活的进程**
 
-| 粒度                     | 数量规则                                                                                                                                                                                                                                                                                          |
-| ---------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 整个集群                   | 只有一个active状态的**ResourceManager（RM）**，集群n个机器就对应了n个node，其中有一个node安装了ResourceManager，每个node都安装了**NodeManager（NM）**<br>                                                                                                                                                                           |
-| 某台机器                   | 即某个node，包含一个**NodeManager（NM）**。<br> 当需要执行Application任务时，RM会给node分配一个**AM Container**资源 用于运行**ApplicationMaster**<br>**NodeManager（NM）** 则启动对应的**ApplicationMaster（AM）**<br>根据任务的不同**ApplicationMaster（AM）** 会继续向**ResourceManager（RM）** 申请多个**Task Container**用于执行MapTask / ReduceTask 等具体任务 |
-| Container              | 某台机器上可以同时运行 0~~N 个 AM Container 和 0~~N 个 Task Container，具体数量受资源、队列、调度策略和当前负载限制。<br>一个 Container 里 **只会跑一个 JVM 进程**：要么装的是「AM」，要么装的是「某一个Task」。<br>                                                                                                                                              |
-| Application（1次Job/DAG） | **1 个 AM**（生命周期跟着Job走，Job结束AM就退）。如果同一时刻跑10个Job = 10个AM，分布在不超过10台机器（也可能更集中，看调度）                                                                                                                                                                                                                |
+| 粒度                              | 数量规则                                                                                                                                                                                                                                                                                             |
+| ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 整个集群                            | 只有一个active状态的**ResourceManager（RM）**，集群n个机器就对应了n个node，其中有一个node安装了ResourceManager，每个node都安装了**NodeManager（NM）**<br/>                                                                                                                                                                             |
+| 某台机器                            | 即某个node，包含一个**NodeManager（NM）**。<br/> 当需要执行Application任务时，RM会给node分配一个**AM Container**资源 用于运行**ApplicationMaster**<br/>**NodeManager（NM）** 则启动对应的**ApplicationMaster（AM）**<br/>根据任务的不同**ApplicationMaster（AM）** 会继续向**ResourceManager（RM）** 申请多个**Task Container**用于执行MapTask / ReduceTask 等具体任务 |
+| Container                       | 某台机器上可以同时运行 0~N 个 AM Container 和 0~N 个 Task Container，具体数量受资源、队列、调度策略和当前负载限制。<br/>在 MapReduce 场景下，一个 AM Container 通常运行 MRAppMaster，一个 Task Container 通常运行一个 MapTask 或 ReduceTask attempt。<br/>                                                                                                   |
+| Application（以 MapReduce Job 为例） | 在 MapReduce 引擎下，一个 MR Job 通常对应一个 YARN Application；一个 Application 通常由**一个正在运行的 AM 协调，1 个 AM**（生命周期跟着Job走，Job结束AM就退）。如果同一时刻跑10个Job = 10个AM，分布在不超过10台机器（也可能更集中，看调度）                                                                                                                                 |
 
-假设这个 Job 需要：
+如果这个 Job 需要：
 
 - 1 个 ApplicationMaster
 - 3 个 MapTask
 - 1 个 ReduceTask
 
-分配结果如下
+那么分配结果可能如下
 
 ```plain
 Node1
@@ -718,7 +786,7 @@ Node1
 Node2
 ├── ResourceManager Standby(备用的ResourceManager，提供高可用)
 └── NodeManager
-    └── Container 1 → MRAppMaster(启动Applicaiton)
+    └── Container 1 → MRAppMaster(启动Application)
 
 Node3
 └── NodeManager
@@ -730,10 +798,6 @@ Node4
     ├── Container 4 → MapTask 3
     └── Container 5 → ReduceTask 1
 ```
-
-当执行引擎选择 MapReduce 时，MR Job 提交到 YARN 后具体运行步骤如下
-
-![](./assets/12748c1388dabac0ae12033c61177d15c201ead0.png)
 
 ## 步骤 5.1：RM分配 AM 所需 Container
 
@@ -763,7 +827,7 @@ ResourceManager 收到后，会生成一个YARN Application ID：`application_XX
 
 RM 接纳 **Application** ， **调度器（Capacity/Fair）+ 策略**​ 决定把 **AM 容器(AM Container)** 分配到哪台 NM；然后 RM 让那台 **NM 启动该 AM Container**，再把启动命令下发给 NM。图中假设为node2中的NM，用于配置启动**ApplicationMaster**的环境
 
-## 步骤 5.2：NodeManager 启动ApplicationMaster
+## 步骤 5.2：NodeManager 启动 AM Container，并在其中运行 MRAppMaster
 
 步骤 5.1中**RM 接纳 App 后**把 **ApplicationMaster Container** 调度出来，再把启动命令下发给 NM
 
@@ -771,7 +835,7 @@ RM 接纳 **Application** ， **调度器（Capacity/Fair）+ 策略**​ 决定
 
 ## 步骤 5.3：ApplicationMaster 分析任务，并请求资源
 
-之前的步骤4.5中包含HiveExcutor中生成的 job.xml、split 信息，但是这些**属于上层（Hive→MR 的编译/翻译产物）**，不是 YARN 的概念。
+之前的步骤4.5中包含Hive Excutor中生成的 job.xml、split 信息，但是这些**属于上层（Hive→MR 的编译/翻译产物）**，不是 YARN 的概念。
 
 YARN 只知道：这是一个 **Application**，它有 **AM**
 
@@ -803,7 +867,7 @@ AM 会构造 task-launch 上下文（环境变量、jar、参数等）
 
 → 向目标 NM 发起 **StartContainer**
 
-→ NM 在该 **Task Container**里启动 JVM
+→ NM 在该 **Task Container**里启动 JVM 
 
 → 跑 **MapTaskRunner**，MapTask 执行 Hive 的 Map Operator Tree，每个 MapTask 启动后，会读取自己的 input split。然后执行类似这样的逻辑
 
