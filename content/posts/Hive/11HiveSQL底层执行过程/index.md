@@ -1,15 +1,11 @@
 ---
-
-title: "【十一】Hive 执行计划：SQL 编译、任务生成与 YARN 调度流程"
+title: "【十一】HiveSQL底层执行过程：SQL 编译、任务生成与 YARN 调度流程"
 date: 2026-06-20T22:18:36+08:00
 draft: false
-tags: ["Hive", "执行计划", "EXPLAIN", "MapReduce", "YARN"]
+tags: ["Hive", "HIVE Driver", "HIVE Excutor", "MapReduce", "YARN"]
 categories: ["Hive"]
 description: "梳理 Hive SQL 从客户端提交、HiveServer2 接收、Driver 编译优化，到生成 MapReduce 并提交 YARN 调度执行的完整流程。"
-
 ---
-
-
 
 首先需要声明一下Hive是运行在Hadoop上层的数据仓库工具，它依赖 HDFS 和 YARN 运行，但不属于 Hadoop 内核，而是 Hadoop 生态圈的重要成员。
 
@@ -31,7 +27,7 @@ Executor 执行 `MapRedTask` 时，会通过 Hadoop API 提交一个Hadoop MapRe
 
 需要说明：本文主要以 MapReduce 执行引擎为例。如果使用 Tez 或 Spark，Hive 内部编译流程类似，但提交到执行后端和 YARN 的细节不同。
 
-# HQL->QueryPlan概述图
+# 👉 HQL->QueryPlan概述图
 
 概述图的步骤和标题是一一对应的，所以可以结合后面的详细步骤来看
 
@@ -720,7 +716,7 @@ Executor 执行顺序是：
 4. 全部成功，Driver 标记 SQL 成功
 ```
 
-# QueryPlan->Yarn概述图
+# 👉 QueryPlan->Yarn概述图
 
 当执行引擎选择 MapReduce 时，MR Job 提交到 YARN 后具体运行步骤如下
 
