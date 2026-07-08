@@ -160,6 +160,151 @@
 	gap: 4px;
 }
 
+/* Customize article code scrolling and collapse controls. */
+.article-content {
+	--code-collapsed-height: 420px;
+	--code-collapse-mask-height: 130px;
+
+	pre {
+		word-break: normal;
+		overflow-wrap: normal;
+	}
+
+	.highlight {
+		--code-block-scrollbar-bg: #272822;
+
+		background-color: var(--code-block-scrollbar-bg);
+
+		pre {
+			scrollbar-color: rgba(128, 128, 128, 0.7) var(--code-block-scrollbar-bg);
+		}
+
+		pre::-webkit-scrollbar {
+			height: 10px;
+			background-color: var(--code-block-scrollbar-bg);
+		}
+
+		pre::-webkit-scrollbar-track,
+		pre::-webkit-scrollbar-corner {
+			background-color: var(--code-block-scrollbar-bg);
+		}
+
+		pre::-webkit-scrollbar-thumb {
+			border: 2px solid var(--code-block-scrollbar-bg);
+			border-radius: 999px;
+			background-color: rgba(128, 128, 128, 0.7);
+		}
+
+		code {
+			word-break: normal;
+			overflow-wrap: normal;
+		}
+
+		pre {
+			overflow-x: auto;
+		}
+
+		table {
+			min-width: 100%;
+		}
+
+		table,
+		table tbody {
+			display: block;
+			width: 100%;
+		}
+
+		table tr {
+			display: flex;
+			width: 100%;
+		}
+
+		table td:first-child {
+			flex: 0 0 auto;
+		}
+
+		table td:last-child {
+			flex: 1 1 0;
+			min-width: 0;
+			width: 0 !important;
+		}
+
+		table td:last-child pre {
+			max-width: 100%;
+		}
+
+		&.code-collapsible {
+			overflow: hidden;
+
+			.codeBlockToggle {
+				appearance: none;
+				display: flex;
+				position: absolute;
+				bottom: 22px;
+				left: 50%;
+				z-index: 2;
+				align-items: center;
+				justify-content: center;
+				min-width: 120px;
+				padding: 6px 16px;
+				border: 0;
+				border-radius: 0;
+				background: transparent;
+				box-shadow: none;
+				color: rgb(163, 161, 226);
+				font-size: 1.35rem;
+				font-weight: 600;
+				line-height: 1.4;
+				text-shadow: 0 1px 3px rgba(0, 0, 0, 0.75);
+				cursor: pointer;
+				transform: translateX(-50%);
+			}
+
+			.codeBlockToggle:hover {
+				background: transparent;
+			}
+		}
+
+		&.code-collapsible.is-collapsed {
+			&::after {
+				position: absolute;
+				right: 0;
+				bottom: 0;
+				left: 0;
+				z-index: 1;
+				height: var(--code-collapse-mask-height);
+				background: linear-gradient(
+					to bottom,
+					rgba(0, 0, 0, 0),
+					rgba(0, 0, 0, 0.62) 55%,
+					rgba(0, 0, 0, 0.92) 100%
+				);
+				content: "";
+				pointer-events: none;
+			}
+
+			pre {
+				max-height: var(--code-collapsed-height);
+				overflow: hidden;
+			}
+
+		}
+
+		&.code-collapsible.is-expanded {
+			padding-bottom: calc(var(--card-padding) + 34px);
+
+			.codeBlockToggle {
+				bottom: 8px;
+			}
+
+			pre {
+				max-height: none;
+				overflow-x: auto;
+			}
+		}
+	}
+}
+
 /* Floating back-to-top button shown after scrolling. */
 .back-to-top {
 	position: fixed;

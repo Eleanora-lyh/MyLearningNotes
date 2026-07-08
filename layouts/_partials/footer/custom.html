@@ -60,6 +60,73 @@
 <script async src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script>
 
 {{- if .IsPage }}
+{{- $codeExpandText := cond (eq .Site.Language.Lang "en") "Expand ↓" "展开 ↓" -}}
+{{- $codeCollapseText := cond (eq .Site.Language.Lang "en") "Collapse ↑" "收起 ↑" -}}
+<script>
+	(function () {
+		var expandText = {{ printf "%q" $codeExpandText | safeJS }};
+		var collapseText = {{ printf "%q" $codeCollapseText | safeJS }};
+
+		function getCollapsedHeight(article) {
+			var rawValue = window.getComputedStyle(article).getPropertyValue('--code-collapsed-height');
+			return parseInt(rawValue, 10) || 420;
+		}
+
+		function getMeasureTarget(block) {
+			return block.querySelector('table') || block.querySelector('pre');
+		}
+
+		function getCodeHeight(target) {
+			var height = target.scrollHeight || 0;
+			var pres = target.querySelectorAll ? target.querySelectorAll('pre') : [];
+
+			for (var index = 0; index < pres.length; index++) {
+				height = Math.max(height, pres[index].scrollHeight || 0);
+			}
+
+			return height;
+		}
+
+		function setupCodeBlockToggles() {
+			var article = document.querySelector('.article-content');
+			if (!article) return;
+
+			var collapsedHeight = getCollapsedHeight(article);
+			var highlights = article.querySelectorAll('.highlight');
+
+			Array.prototype.forEach.call(highlights, function (block) {
+				if (block.classList.contains('code-collapsible')) return;
+
+				var measureTarget = getMeasureTarget(block);
+				if (!measureTarget || getCodeHeight(measureTarget) <= collapsedHeight + 32) return;
+
+				var button = document.createElement('button');
+				button.type = 'button';
+				button.className = 'codeBlockToggle';
+				button.setAttribute('aria-expanded', 'false');
+				button.textContent = expandText;
+
+				button.addEventListener('click', function () {
+					var shouldExpand = block.classList.contains('is-collapsed');
+					block.classList.toggle('is-collapsed', !shouldExpand);
+					block.classList.toggle('is-expanded', shouldExpand);
+					button.setAttribute('aria-expanded', shouldExpand ? 'true' : 'false');
+					button.textContent = shouldExpand ? collapseText : expandText;
+				});
+
+				block.classList.add('code-collapsible', 'is-collapsed');
+				block.appendChild(button);
+			});
+		}
+
+		if (document.readyState === 'complete') {
+			setupCodeBlockToggles();
+		} else {
+			window.addEventListener('load', setupCodeBlockToggles);
+		}
+	})();
+</script>
+
 {{- $copyProtectionNotice := cond (eq .Site.Language.Lang "en") "Copying is disabled. This article is protected." "无法复制，本站文章内容受保护" -}}
 <div class="copy-protection-notice" role="status" aria-live="polite">{{ $copyProtectionNotice }}</div>
 
