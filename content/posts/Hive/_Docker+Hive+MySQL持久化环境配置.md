@@ -183,9 +183,11 @@ services:
       --collation-server=utf8mb4_unicode_ci
     healthcheck:
       test: ["CMD-SHELL", "mysqladmin ping -h localhost -uroot -proot || exit 1"]
-      interval: 10s
+      interval: 10m
       timeout: 5s
       retries: 20
+      start_interval: 180s
+      start_period: 180s
 
   hive-metastore:
     image: apache/hive:4.1.0
@@ -203,20 +205,31 @@ services:
         -Djavax.jdo.option.ConnectionUserName=hive
         -Djavax.jdo.option.ConnectionPassword=hive
         -Dhive.metastore.warehouse.dir=/opt/hive/data/warehouse
+        -Dhive.metastore.server.min.threads=20
+        -Dhive.metastore.server.max.threads=200
     ports:
       - "9083:9083"
     volumes:
       - warehouse-data:/opt/hive/data/warehouse
       - ./mysql-connector-j-8.4.0.jar:/opt/hive/lib/mysql-connector-j-8.4.0.jar
+    healthcheck:
+      test: ["CMD-SHELL", "bash -ec ': >/dev/tcp/127.0.0.1/9083'"]
+      interval: 10m
+      timeout: 5s
+      retries: 20
+      start_interval: 180s
+      start_period: 180s
 
   hiveserver2:
     image: apache/hive:4.1.0
     container_name: hive4
     restart: unless-stopped
     depends_on:
-      - hive-metastore
+      hive-metastore:
+        condition: service_healthy
     environment:
       SERVICE_NAME: hiveserver2
+      IS_RESUME: "true"
       SERVICE_OPTS: >
         -Dhive.metastore.uris=thrift://hive-metastore:9083
         -Dhive.server2.thrift.bind.host=0.0.0.0
@@ -224,7 +237,7 @@ services:
         -Dhive.server2.webui.host=0.0.0.0
         -Dhive.server2.webui.port=10002
     ports:
-      - "10000:10000"
+      - "10001:10000"
       - "10002:10002"
     volumes:
       - warehouse-data:/opt/hive/data/warehouse
