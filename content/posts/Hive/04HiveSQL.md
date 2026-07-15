@@ -82,9 +82,9 @@ DROP DATABASE IF EXISTS tcec_dw CASCADE;
 
 Hive 表分为：**内部表（Managed Table）**、**外部表（External Table）**、**分区表（Partitioned）**、**分桶表（Bucketed）**、**临时表（Temporary）**。
 
-### 1. 创建表
+### 2.1 创建表
 
-#### 1.1 完整建表语法
+#### 2.1.1 完整建表语法
 
 ```sql
 CREATE [TEMPORARY] [EXTERNAL] TABLE [IF NOT EXISTS] [db_name.]table_name
@@ -112,7 +112,7 @@ LINES TERMINATED BY '\n'] -- 行格式
 [TBLPROPERTIES ('key'='value', ...)]; -- 表属性
 ```
 
-#### 1.2 内部表 vs 外部表
+#### 2.1.2 内部表 vs 外部表
 
 | 维度              | 内部表（Managed）          | 外部表（External）           |
 | --------------- | --------------------- | ----------------------- |
@@ -145,7 +145,7 @@ LINES TERMINATED BY '\n'] -- 行格式
   LOCATION '/data/raw/user_log/';
   ```
 
-#### 1.3 分区表
+#### 2.1.3 分区表
 
 ```sql
 CREATE TABLE dwd_order (
@@ -291,7 +291,7 @@ SET hive.exec.max.created.files=100000;  -- 整个作业允许创建的最大文
 SET hive.error.on.empty.partition=false;  -- 是否在动态分区插入产生空分区时报错
 ```
 
-#### 1.4 分桶表
+#### 2.1.4 分桶表
 
 分桶的本质是在数据写入时，通过**计算**指定字段的哈希值，将哈希值相同的分到同一个桶（值相同则一定在同一个桶，但同一个桶的值不一定相同），每个桶对应一个文件。这需要读取、计算哈希、排序、写入等多个步骤。
 
@@ -385,7 +385,7 @@ SELECT user_id, name FROM source_table;
 -- 5. 结果：生成32个有序的ORC文件
 ```
 
-#### 1.5 CTAS & LIKE 建表
+#### 2.1.5 CTAS & LIKE 建表
 
 - CTAS（Create Table As Select）​ 根据查询结果建表（含数据）
   
@@ -403,7 +403,7 @@ SELECT user_id, name FROM source_table;
 
 > ⚠️ **CTAS 不能创建分区表/外部表**，因为分区/外部属性需要显式声明。
 
-### 2. 查看表
+### 2.2 查看表
 
 | 操作       | 语法                                                        |
 | -------- | --------------------------------------------------------- |
@@ -415,9 +415,9 @@ SELECT user_id, name FROM source_table;
 | 查看分区     | `SHOW PARTITIONS table_name;`                             |
 | 查看分区（过滤） | `SHOW PARTITIONS table_name PARTITION(dt='2026-05-17');`  |
 
-### 3. 修改表（ALTER TABLE）
+### 2.3 修改表（ALTER TABLE）
 
-#### 3.1 表级别修改
+#### 2.3.1 表级别修改
 
 ```sql
 -- 重命名
@@ -434,7 +434,7 @@ ALTER TABLE t SET TBLPROPERTIES ('EXTERNAL'='TRUE'); -- 改外部表
 ALTER TABLE t SET TBLPROPERTIES ('EXTERNAL'='FALSE'); -- 改内部表
 ```
 
-#### 3.2 列级别修改
+#### 2.3.2 列级别修改
 
 ```sql
 -- 增加列
@@ -449,7 +449,7 @@ ALTER TABLE t REPLACE COLUMNS (id BIGINT, name STRING);
 
 > ⚠️ **Hive 不支持直接 DROP COLUMN**，要删列必须用 `REPLACE COLUMNS` 把保留的列重列一遍。
 
-#### 3.3 分区级别修改
+#### 2.3.3 分区级别修改
 
 ```sql
 -- 添加分区（手动）
@@ -465,7 +465,7 @@ ALTER TABLE t PARTITION (dt='2026-05-17') SET LOCATION 'hdfs://new_path';
 MSCK REPAIR TABLE t;
 ```
 
-### 4. 删除/清空表
+### 2.4 删除/清空表
 
 ```sql
 -- 删除表（内部表会删 HDFS 数据，外部表只删元数据）
@@ -479,7 +479,7 @@ TRUNCATE TABLE table_name [PARTITION (dt='2026-05-17')];
 
 TRUNCATE清空的表不进回收站，无法恢复（慎用）
 
-### 5. 数据加载
+### 2.5 数据加载
 
 分区中加载数据
 
@@ -507,7 +507,7 @@ EXPORT TABLE teacher TO '/export/teacher';
 IMPORT TABLE teacher2 FROM '/export/teacher';
 ```
 
-### 6. 数据导出
+### 2.6 数据导出
 
 Hive本身不存储数据，它管理的是存储在HDFS（或对象存储）上数据的“元数据”。因此，数据导出本质是将数据文件从Hive表对应的位置复制或转换到其他位置。
 
@@ -584,7 +584,7 @@ EXPORT TABLE score TO '/export/exporthive/score';
 
 ---
 
-### 7. 命令对照速查表（数据库 vs 数据表）
+### 2.7 命令对照速查表（数据库 vs 数据表）
 
 | 维度    | 数据库（Database）                         | 数据表（Table）                               |
 | ----- | ------------------------------------- | ---------------------------------------- |
@@ -597,13 +597,13 @@ EXPORT TABLE score TO '/export/exporthive/score';
 | 改结构   | 仅改属性/owner/location                   | 增/改/换列、加减分区                              |
 | 删除    | `DROP DATABASE [CASCADE]`             | `DROP TABLE` / `TRUNCATE TABLE`          |
 
-# 三、Hive的DQL查询语法
+## 三、Hive的DQL查询语法
 
 Hive 的 DQL（Data Query Language，数据查询语言）整体语法和标准 SQL 很相似，但因为底层是分布式计算（MapReduce/Tez/Spark），所以在排序、分桶采样、Join 等地方有自己的特色。
 
 ---
 
-## SELECT 完整语法骨架
+### 3.1 SELECT 完整语法骨架
 
 ```sql
 SELECT [ALL | DISTINCT] select_expr, select_expr, ...
@@ -632,7 +632,7 @@ FROM table_reference
 
 `FROM → JOIN → WHERE → GROUP BY → HAVING → SELECT → DISTINCT → ORDER BY / SORT BY → LIMIT`
 
-## WHERE
+### 3.2 WHERE
 
 `WHERE` < 是不包含null的，查询结果中没有deptno=null的情况
 
@@ -650,7 +650,7 @@ SELECT * FROM employees WHERE deptno < 20;
 | `RLIKE / REGEXP`          | 正则匹配（Java 正则） |
 | `AND / OR / NOT`          | 逻辑            |
 
-## GROUP BY
+### 3.3 GROUP BY
 
 `GROUP BY` 使用`group by`则select后只能写分组的字段或聚合函数
 
@@ -671,11 +671,42 @@ FROM user_behavior
 GROUP BY province, city;
 ```
 
-## 排序
+### 3.4 排序
 
-### SORT BY
+Hive 的排序要先拆成两个问题来看：
 
-`SORT BY`  非全局排序，在数据进入reducer前完成排序，不保证全局有序
+1. **数据分到哪个 Reducer？** 这个由 `DISTRIBUTE BY` 控制，本质类似 MapReduce 里的 `Partitioner`。
+2. **进入 Reducer 后怎么排序？** 这个由 `SORT BY` 控制，只保证每个 Reducer 内部有序。
+
+所以 `DISTRIBUTE BY deptno SORT BY sal DESC` 的意思不是“全局按工资排序”，而是：**先按部门号 `deptno` 把数据分发到不同 Reducer，再在每个 Reducer 内部按工资 `sal` 降序排列**。
+
+`DISTRIBUTE BY` 使用 Hash 分发，简化理解就是：
+
+```text
+reducer_id = hash(分发字段) % reducer数量
+```
+
+例如按照 `deptno` 分发时，相同部门号的数据会进入同一个 Reducer：
+
+```text
+Map1 ┐          ┌──→ Reducer1: 部门10的所有员工
+Map2 ┼──hash──→ ├──→ Reducer2: 部门20的所有员工
+Map3 ┘          └──→ Reducer3: 部门30的所有员工
+```
+
+如果后面再接 `SORT BY sal DESC`，那么每个 Reducer 内部会继续按 `sal` 降序输出：
+
+```text
+Reducer1: 部门10的所有员工，按 sal 降序
+Reducer2: 部门20的所有员工，按 sal 降序
+Reducer3: 部门30的所有员工，按 sal 降序
+```
+
+但注意：多个 Reducer 的输出文件之间没有统一比较，所以整体结果仍然不是全局有序。
+
+#### 3.4.1 SORT BY
+
+`SORT BY` 是**Reducer 内部排序**，不保证全局有序。它通常和 `DISTRIBUTE BY` 一起使用：前者控制“怎么排”，后者控制“分到哪”。
 
 ```sql
 SELECT * FROM employees
@@ -683,17 +714,14 @@ DISTRIBUTE BY deptno
 SORT BY sal DESC;
 ```
 
-`SORT BY` 单独使用时，数据是**随机**分发到 Reducer 的，所以你无法控制"哪些数据进同一个 Reducer"。
+这条 SQL 的执行效果就是两步：
 
-而 `DISTRIBUTE BY` 就是用来**控制分发规则**（使用Hash算法）的，相当于 MapReduce 里的 `Partitioner`，
+- `DISTRIBUTE BY deptno`：先保证同一个部门的数据进入同一个 Reducer
+- `SORT BY sal DESC`：再保证每个 Reducer 内部按工资降序输出
 
-```sql
-Map1 ┐          ┌──→ Reducer1: 部门10的所有员工，按 sal 降序
-Map2 ┼──hash──→ ├──→ Reducer2: 部门20的所有员工，按 sal 降序
-Map3 ┘          └──→ Reducer3: 部门30的所有员工，按 sal 降序
-```
+如果只写 `SORT BY sal DESC`，数据会随机分发到多个 Reducer，你只能得到“每个 Reducer 内部按工资降序”，不能保证同一个部门的数据聚在一起。
 
-### CLUSTER BY
+#### 3.4.2 CLUSTER BY
 
 `CLUSTER BY` 是 `DISTRIBUTE BY + SORT BY` 的**简写**，但有两个限制：
 
@@ -707,7 +735,7 @@ SELECT * FROM emp CLUSTER BY deptno;
 SELECT * FROM emp DISTRIBUTE BY deptno SORT BY deptno;
 ```
 
-### ORDER BY
+#### 3.4.3 ORDER BY
 
 `ORDER BY` 对输入做全局排序，因此只有1个reducer，当规模较大时会耗时
 
@@ -717,7 +745,7 @@ Map2 ┼──→  [单个 Reducer，所有数据汇总]  →  输出 1 个全�
 Map3 ┘
 ```
 
-### 总结
+#### 3.4.4 总结
 
 | 子句              | 作用范围                              | 是否全局有序 | Reduce 数量 | 使用场景                 |
 | --------------- | --------------------------------- | ------ | --------- | -------------------- |
@@ -726,12 +754,25 @@ Map3 ┘
 | `DISTRIBUTE BY` | 控制数据到哪个 Reducer                   | ❌ 否    | 多个        | 类似 MR 中的 partitioner |
 | `CLUSTER BY`    | = DISTRIBUTE BY + SORT BY（同字段、升序） | ❌ 否    | 多个        | 简写形式                 |
 
-## JOIN
+### 3.5 JOIN
 
-`Join` hive2 支持在`ON`·后连接 `< > = OR`，一个JOIN就会启动一个job，
+Hive 的 JOIN 本质是：**根据连接条件，把两张表中能匹配上的行组合在一起**。在分布式执行时，默认 Common Join 通常要经历 `Map -> Shuffle -> Reduce`，也就是把相同 Join Key 的数据拉到同一个 Reducer 中再匹配。
+
+实际开发中最常见的是等值连接：
 
 ```sql
--- 表A: employees
+ON e.dept_id = d.dept_id
+```
+
+Hive 2.x 以后对 `ON` 条件的支持更灵活，可以出现部分非等值条件或复杂表达式，但大数据场景里仍然优先使用等值 Join，因为优化器更容易选择 Map Join、Bucket Map Join、SMB Join 等高效执行方式。
+
+#### 3.5.1 示例数据
+
+下面所有示例都基于两张表：员工表 `employees` 和部门表 `departments`。
+
+`employees`：
+
+```text
 +-----+-------+---------+
 | id  | name  | dept_id |
 +-----+-------+---------+
@@ -739,58 +780,195 @@ Map3 ┘
 | 2   | Bob   | 102     |
 | 3   | Carol | NULL    |
 +-----+-------+---------+
-
--- 表B: departments
-+-------+-----------+
-| dept_id | dept_name  |
-+-------+-----------+
-| 101   | Sales     |
-| 103   | IT        |
-+-------+-----------+
 ```
 
+`departments`：
+
+```text
++---------+-----------+
+| dept_id | dept_name |
++---------+-----------+
+| 101     | Sales     |
+| 103     | IT        |
++---------+-----------+
+```
+
+注意：`NULL` 不会和任何值相等，甚至也不会和另一个 `NULL` 相等。因此 `Carol` 的 `dept_id = NULL` 不会匹配到任何部门。
+
+#### 3.5.2 INNER JOIN：内连接
+
+`INNER JOIN` 只返回两张表中**连接条件匹配成功**的行。可以理解为只要交集：左表有、右表也能匹配上的数据才会留下。
+
 ```sql
--- INNER JOIN 内连接（A ∩ B）: 基于连接条件的交集，只返回满足条件的行
--- 等价于 SELECT employees, departments  
 SELECT e.name, d.dept_name
 FROM employees e
 INNER JOIN departments d ON e.dept_id = d.dept_id;
--- 返回
-Alice  Sales
+```
 
--- LEFT [OUTER] JOIN 左外连接：左边数据会完全保留，右边符合连接条件的才会保留（右连接则相反）
+返回结果：
+
+```text
++-------+-----------+
+| name  | dept_name |
++-------+-----------+
+| Alice | Sales     |
++-------+-----------+
+```
+
+解释：
+
+- `Alice.dept_id = 101`，能匹配到 `Sales`
+- `Bob.dept_id = 102`，部门表没有 `102`，被过滤掉
+- `Carol.dept_id = NULL`，不能参与等值匹配，被过滤掉
+
+#### 3.5.3 LEFT JOIN：左外连接
+
+`LEFT JOIN` 会**保留左表全部数据**。右表能匹配上就补右表字段，匹配不上就用 `NULL` 填充右表字段。
+
+```sql
 SELECT e.name, d.dept_name
 FROM employees e
 LEFT JOIN departments d ON e.dept_id = d.dept_id;
---返回
-Alice  Sales
-Bob    NULL
-Carol  NULL
+```
 
--- FULL [OUTER] JOIN 全连接（左连接 ∪ 右连接 但要去除重复行）：左表所有行 + 右表所有行,不匹配的行用NULL填充
+返回结果：
+
+```text
++-------+-----------+
+| name  | dept_name |
++-------+-----------+
+| Alice | Sales     |
+| Bob   | NULL      |
+| Carol | NULL      |
++-------+-----------+
+```
+
+解释：左表 `employees` 的三个人都会保留；其中 `Bob` 和 `Carol` 没有匹配部门，所以 `dept_name` 为 `NULL`。
+
+#### 3.5.4 RIGHT JOIN：右外连接
+
+`RIGHT JOIN` 和 `LEFT JOIN` 相反，会**保留右表全部数据**。左表能匹配上就补左表字段，匹配不上就用 `NULL` 填充左表字段。
+
+```sql
+SELECT e.name, d.dept_name
+FROM employees e
+RIGHT JOIN departments d ON e.dept_id = d.dept_id;
+```
+
+返回结果：
+
+```text
++-------+-----------+
+| name  | dept_name |
++-------+-----------+
+| Alice | Sales     |
+| NULL  | IT        |
++-------+-----------+
+```
+
+解释：右表 `departments` 的两个部门都会保留；`IT.dept_id = 103` 没有员工匹配，所以员工姓名为 `NULL`。
+
+#### 3.5.5 FULL JOIN：全外连接
+
+`FULL JOIN` 会**同时保留左表和右表的全部数据**。能匹配上的合并成一行，匹配不上的那一侧字段用 `NULL` 填充。
+
+```sql
 SELECT e.name, d.dept_name
 FROM employees e
 FULL JOIN departments d ON e.dept_id = d.dept_id;
--- 返回
-Alice  Sales
-Bob    NULL
-Carol  NULL
-NULL   IT
+```
 
--- 显式CROSS JOIN(笛卡尔积)左表×右表 = 全部组合
+返回结果：
+
+```text
++-------+-----------+
+| name  | dept_name |
++-------+-----------+
+| Alice | Sales     |
+| Bob   | NULL      |
+| Carol | NULL      |
+| NULL  | IT        |
++-------+-----------+
+```
+
+解释：
+
+- `Alice` 和 `Sales` 匹配成功，合并成一行
+- `Bob`、`Carol` 是左表未匹配数据，右表字段为 `NULL`
+- `IT` 是右表未匹配数据，左表字段为 `NULL`
+
+#### 3.5.6 CROSS JOIN：交叉连接
+
+`CROSS JOIN` 是笛卡尔积，会把左表每一行和右表每一行都组合一次。如果左表有 3 行，右表有 2 行，结果就是 `3 * 2 = 6` 行。
+
+```sql
 SELECT e.name, d.dept_name
 FROM employees e
 CROSS JOIN departments d;
--- 返回
-Alice  Sales
-Alice  IT
-Bob    Sales
-Bob    IT
-Carol  Sales
-Carol  IT
 ```
 
-三种 Join 优化策略（联系上次聊的内容）
+返回结果：
+
+```text
++-------+-----------+
+| name  | dept_name |
++-------+-----------+
+| Alice | Sales     |
+| Alice | IT        |
+| Bob   | Sales     |
+| Bob   | IT        |
+| Carol | Sales     |
+| Carol | IT        |
++-------+-----------+
+```
+
+`CROSS JOIN` 数据量膨胀很快，生产中要谨慎使用，通常需要配合过滤条件或确认两边都是小表。
+
+#### 3.5.7 LEFT SEMI JOIN：左半连接
+
+`LEFT SEMI JOIN` 是 Hive 中很常用的半连接，效果类似 `EXISTS`：**只返回左表中能在右表匹配成功的行**。
+
+它和 `INNER JOIN` 的区别是：`LEFT SEMI JOIN` 只能查询左表字段，不能返回右表字段。
+
+```sql
+SELECT e.name
+FROM employees e
+LEFT SEMI JOIN departments d ON e.dept_id = d.dept_id;
+```
+
+返回结果：
+
+```text
++-------+
+| name  |
++-------+
+| Alice |
++-------+
+```
+
+适合判断“左表记录是否存在于右表中”的场景：
+
+```sql
+-- 查询有合法部门的员工
+SELECT e.*
+FROM employees e
+LEFT SEMI JOIN departments d ON e.dept_id = d.dept_id;
+```
+
+#### 3.5.8 JOIN 类型速查
+
+| Join 类型          | 是否保留左表未匹配行 | 是否保留右表未匹配行 | 典型用途            |
+| ---------------- | ---------- | ---------- | --------------- |
+| `INNER JOIN`     | 否          | 否          | 只要两边匹配成功的数据     |
+| `LEFT JOIN`      | 是          | 否          | 保留主表全部记录，补充维表信息 |
+| `RIGHT JOIN`     | 否          | 是          | 保留右表全部记录，较少使用   |
+| `FULL JOIN`      | 是          | 是          | 合并两边全集，检查缺失关系   |
+| `CROSS JOIN`     | 不按匹配条件过滤   | 不按匹配条件过滤   | 生成所有组合，容易数据膨胀   |
+| `LEFT SEMI JOIN` | 只保留左表匹配成功行 | 不返回右表字段    | 判断左表记录是否存在于右表   |
+
+#### 3.5.9 JOIN 优化策略
+
+Hive 中 JOIN 慢，通常不是因为 SQL 语法复杂，而是因为 Shuffle 数据量太大。常见优化策略如下：
 
 | Join 类型                        | 触发条件            | 原理                               |
 | ------------------------------ | --------------- | -------------------------------- |
@@ -798,7 +976,13 @@ Carol  IT
 | **Map Join**                   | 小表 < 25MB       | 小表广播到每个 Mapper，无 Shuffle         |
 | **Bucket Map Join / SMB Join** | 两表分桶（+排序）且桶数成倍数 | 桶对桶 Join，无需 Shuffle              |
 
-## LIMIT（带 offset）
+实际使用时可以按这个顺序判断：
+
+1. 小表能否广播？能的话优先考虑 `Map Join`。
+2. 两张大表是否经常按同一个 Key Join？是的话考虑分桶，进一步使用 `Bucket Map Join` 或 `SMB Join`。
+3. 如果都不满足，就会退回默认的 `Common Join`，需要重点关注 Shuffle 数据量和数据倾斜。
+
+### 3.6 LIMIT（带 offset）
 
 ```sql
 SELECT * FROM emp LIMIT 5; -- 前 5 行
@@ -806,7 +990,7 @@ SELECT * FROM emp LIMIT 5; -- 前 5 行
 SELECT * FROM emp LIMIT 10, 5; -- 跳过 10 行，取 5 行（部分版本支持）
 ```
 
-## UNION / UNION ALL
+### 3.7 UNION / UNION ALL
 
 ```sql
 -- UNION ALL：不去重，效率高

@@ -279,6 +279,17 @@ Reduce阶段：(同普通JOIN)
 
 ### 4、分区设计原则
 
+**分区适合低基数或可控基数的字段**，分区不宜过多，否则产生大量小文件（每个分区数据量建议：100MB-2GB）
+
+例如：
+
+- 日期 `dt`
+- 小时 `hour`
+- 地区 `region`
+- 业务类型 `biz_type`
+
+不适合直接把 `user_id` 作为分区字段，因为可能产生数百万个小目录和大量分区元数据
+
 ```sql
 -- 按时间分区（最常用）
 PARTITIONED BY (dt STRING, hour STRING)
@@ -286,13 +297,73 @@ PARTITIONED BY (dt STRING, hour STRING)
 -- 按业务维度分区
 PARTITIONED BY (country STRING, province STRING)
 
--- 分区不宜过多，否则产生大量小文件
--- 每个分区数据量建议：100MB-2GB
 ```
 
 ## 三、分桶+不分区
 
-这两个标题的重点不是“表的字段结构不同”，而是：**同样是两张分桶表，Hive 在 Map 阶段可以用两种不同的 Join 算法**。
+分桶需要到一个关键词 `CLUSTERED BY` 意思是聚类，`CLUSTERED BY user_id INTO 32 BUCKETS`就表示表中的数据在存储时会按照user_id为聚类的条件，把相同user_id的数据会存在一起，最终将所有数据存到32个桶（即32个文件）中
+
+bucket_id对应的是桶的唯一标识，`hash`是将`user_id`映射为桶编号`bucket_id`的映射函数，计算过程如下
+
+```sql
+bucket_id = hash(user_id) % 32
+```
+
+假设
+
+```plain text
+hash(32) % 32 = 0
+hash(33) % 32 = 1
+hash(34) % 32 = 2
+hash(64) % 32 = 0
+```
+
+那么就可以获得`user_id`对应的桶
+
+```plain text
+user_id=32 → bucket_00000
+user_id=33 → bucket_00001
+user_id=34 → bucket_00002
+user_id=64 → bucket_00000
+```
+
+这里需要注意两个方向：
+
+- 相同的 `user_id`，Hash 结果相同，因此一定进入同一个桶；
+- 不同的 `user_id`，也可能由于 Hash 冲突进入同一个桶。
+
+**分区和分桶的区别如下**
+
+| 对比项                       | `PARTITIONED BY` 分区 | `CLUSTERED BY ... INTO N BUCKETS` 分桶   |
+| ------------------------- | ------------------- | -------------------------------------- |
+| 数据划分方式                    | 根据列值直接划分            | 根据列值计算 Hash 后划分                        |
+| 典型公式                      | 一个分区值对应一个目录         | `hash(桶列) mod 桶数`                      |
+| 物理表现                      | 通常是目录               | 通常是文件                                  |
+| 数量                        | 由实际分区值数量决定          | 建表时指定固定桶数                              |
+| 是否保存为元数据                  | 是                   | 是                                      |
+| 查询时常用优化                   | Partition Pruning   | Bucket Pruning、Bucket Join、SMB Join、抽样 |
+| 典型字段                      | `dt`、地区、业务类型        | `user_id`、`deptno`、Join Key            |
+| 是否适合高基数字段                 | 通常不适合               | 比分区更适合                                 |
+| 能否直接通过普通 `WHERE` 大幅减少目录扫描 | 可以                  | 需要执行引擎支持 Bucket Pruning 等优化            |
+
+前提回顾：当没有使用分桶时，过程如下
+
+```plain text
+orders ──按 user_id Shuffle──┐
+                            ├── Reducer Join
+users  ──按 user_id Shuffle──┘
+```
+
+而分桶的核心价值是：将高频 Join Key 作为分桶字段，通过稳定的 Hash 规则，可以让相同 Join Key 稳定地落入对应桶，为 Bucket Map Join、Sort-Merge Bucket Join 等优化创造条件，从而在特定情况下避免或减少 Shuffle 和无关文件扫描。
+
+通过建表时约定的分桶，可以在插入数据时将`user_id`相同的orders、users表组织在同一个桶（同一个文件中），这样就不需要按照`user_id`shuffle数据到同一个~~~~Reducer中了
+
+```plain text
+orders 中的 user_id=32 → bucket_00000
+users  中的 user_id320 → bucket_00000
+```
+
+**同样是两张分桶表，Hive 在 Map 阶段可以用两种不同的 Join 算法：HashMap、Sort Merge Bucket Join**。
 
 ### 1.1、表结构：小表桶 + 大表桶（Bucket Map Join / HashMap）
 
