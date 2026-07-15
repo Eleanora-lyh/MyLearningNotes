@@ -12,6 +12,93 @@
 
 /* Keep the desktop article table of contents scrollable. */
 @include respond(lg) {
+	.article-page {
+		--toc-sidebar-collapsed-width: 48px;
+
+		.right-sidebar {
+			transition: flex-basis 0.2s ease, max-width 0.2s ease, width 0.2s ease;
+		}
+
+		.widget-toc {
+			min-width: 0;
+		}
+
+		.widget-toc-header {
+			display: flex;
+			align-items: center;
+			gap: var(--spacing-sm);
+			margin-bottom: var(--spacing-sm);
+			min-width: 0;
+
+			.widget-title {
+				flex: 1 1 auto;
+				min-width: 0;
+				margin-bottom: 0;
+			}
+		}
+
+		.toc-sidebar-toggle {
+			appearance: none;
+			display: inline-flex;
+			flex: 0 0 auto;
+			align-items: center;
+			justify-content: center;
+			width: 32px;
+			height: 32px;
+			padding: 0;
+			border: 1px solid var(--card-separator-color);
+			border-radius: 6px;
+			background: var(--card-background);
+			box-shadow: var(--shadow-l1);
+			color: var(--card-text-color-main);
+			cursor: pointer;
+			transition: box-shadow 0.2s ease, color 0.2s ease;
+
+			svg {
+				width: 20px;
+				height: 20px;
+			}
+
+			&:hover {
+				color: var(--accent-color);
+				box-shadow: var(--shadow-l2);
+			}
+		}
+
+		.toc-toggle-expand-icon {
+			display: none;
+		}
+
+		&.toc-sidebar-collapsed {
+			.right-sidebar {
+				flex: 0 0 var(--toc-sidebar-collapsed-width);
+				width: var(--toc-sidebar-collapsed-width);
+				max-width: var(--toc-sidebar-collapsed-width);
+				gap: 0;
+			}
+
+			.widget-toc-header {
+				justify-content: center;
+				width: var(--toc-sidebar-collapsed-width);
+				margin-bottom: 0;
+			}
+
+			.widget-toc .widget-icon,
+			.widget-toc .widget-title,
+			.widget-toc .widget--toc {
+				display: none;
+			}
+
+			.toc-toggle-collapse-icon {
+				display: none;
+			}
+
+			.toc-toggle-expand-icon {
+				display: inline-flex;
+			}
+		}
+	}
+
 	.article-page .right-sidebar .toc-nav {
 		max-height: 84vh;
 		overflow-y: auto;
@@ -34,6 +121,36 @@
 /* Tighten spacing between article cards on the home page. */
 .template-home .article-list {
 	gap: 20px;
+}
+
+/* Keep the home page right sidebar independently scrollable on desktop. */
+@include respond(lg) {
+	.template-home .right-sidebar {
+		max-height: 100vh;
+		overflow-y: auto;
+		overscroll-behavior: contain;
+		padding-right: 8px;
+		margin-right: -8px;
+		scrollbar-gutter: stable;
+		scrollbar-width: thin;
+		scrollbar-color: rgba(128, 128, 128, 0.55) transparent;
+	}
+
+	.template-home .right-sidebar::-webkit-scrollbar {
+		width: 10px;
+	}
+
+	.template-home .right-sidebar::-webkit-scrollbar-track,
+	.template-home .right-sidebar::-webkit-scrollbar-corner {
+		background: transparent;
+	}
+
+	.template-home .right-sidebar::-webkit-scrollbar-thumb {
+		border: 2px solid transparent;
+		border-radius: 999px;
+		background-color: rgba(128, 128, 128, 0.55);
+		background-clip: content-box;
+	}
 }
 
 /* Use slightly larger subtitles on article cards and article headers. */

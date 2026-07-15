@@ -1,0 +1,21 @@
+{{ if (.Context.Scratch.Get "TOCEnabled") }}
+    {{- $collapseLabel := cond (eq .Context.Site.Language.Lang "en") "Collapse table of contents" "收起目录" -}}
+    <section class="widget archives widget-toc">
+        <div class="widget-toc-header">
+            <div class="widget-icon">
+                {{ partial "helper/icon" "hash" }}
+            </div>
+            <h2 class="widget-title section-title">{{ T "article.tableOfContents" }}</h2>
+            <button class="toc-sidebar-toggle" type="button" aria-controls="TableOfContents" aria-expanded="true" aria-label="{{ $collapseLabel }}" title="{{ $collapseLabel }}">
+                <span class="toc-toggle-collapse-icon" aria-hidden="true">{{ partial "helper/icon" "chevron-right" }}</span>
+                <span class="toc-toggle-expand-icon" aria-hidden="true">{{ partial "helper/icon" "chevron-left" }}</span>
+            </button>
+        </div>
+
+        <div class="widget--toc">
+            <nav class="toc-nav" id="TableOfContents">
+                {{ partial "article/components/toc" .Context | safeHTML }}
+            </nav>
+        </div>
+    </section>
+{{ end }}

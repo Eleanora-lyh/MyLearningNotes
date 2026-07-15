@@ -60,6 +60,39 @@
 <script async src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script>
 
 {{- if .IsPage }}
+{{- $tocCollapseText := cond (eq .Site.Language.Lang "en") "Collapse table of contents" "收起目录" -}}
+{{- $tocExpandText := cond (eq .Site.Language.Lang "en") "Expand table of contents" "展开目录" -}}
+<script>
+	(function () {
+		var collapseText = {{ printf "%q" $tocCollapseText | safeJS }};
+		var expandText = {{ printf "%q" $tocExpandText | safeJS }};
+
+		function setupTocSidebarToggle() {
+			var toggle = document.querySelector('.toc-sidebar-toggle');
+			if (!toggle || !document.body.classList.contains('article-page')) return;
+
+			function setCollapsed(isCollapsed) {
+				document.body.classList.toggle('toc-sidebar-collapsed', isCollapsed);
+				toggle.setAttribute('aria-expanded', isCollapsed ? 'false' : 'true');
+				toggle.setAttribute('aria-label', isCollapsed ? expandText : collapseText);
+				toggle.setAttribute('title', isCollapsed ? expandText : collapseText);
+			}
+
+			toggle.addEventListener('click', function () {
+				setCollapsed(!document.body.classList.contains('toc-sidebar-collapsed'));
+			});
+
+			setCollapsed(false);
+		}
+
+		if (document.readyState === 'loading') {
+			document.addEventListener('DOMContentLoaded', setupTocSidebarToggle);
+		} else {
+			setupTocSidebarToggle();
+		}
+	})();
+</script>
+
 {{- $codeExpandText := cond (eq .Site.Language.Lang "en") "Expand ↓" "展开 ↓" -}}
 {{- $codeCollapseText := cond (eq .Site.Language.Lang "en") "Collapse ↑" "收起 ↑" -}}
 <script>
