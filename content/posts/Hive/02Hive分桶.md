@@ -160,6 +160,8 @@ Reduce阶段：每个Reducer内做笛卡尔积
 
 ### 1、表结构
 
+设置按天作为分区条件，虽然 CREATE中只声明了order_id、user_id、amount三列，但是由于分区字段的存在，实际上表是有**dt**这列的
+
 ```sql
 CREATE TABLE orders_partitioned (
     order_id BIGINT,
@@ -176,6 +178,8 @@ CREATE TABLE users (  -- users表通常不分区，因为用户维度表变化�
 ```
 
 ### 2、物理存储
+
+因为是按照 dt 分区，所以表中有几天就会在下面新建几个子文件夹，每个文件夹表示一天
 
 ```markdown
 HDFS路径：
@@ -288,7 +292,24 @@ PARTITIONED BY (country STRING, province STRING)
 
 ## 三、分桶+不分区
 
-### 1.1、表结构(小表桶+大表桶) HashMap
+这两个标题的重点不是“表的字段结构不同”，而是：**同样是两张分桶表，Hive 在 Map 阶段可以用两种不同的 Join 算法**。
+
+### 1.1、表结构：小表桶 + 大表桶（Bucket Map Join / HashMap）
+
+这里的“小表桶 + 大表桶”不是说一张表只有小桶、一张表只有大桶，而是说：
+
+- 两张表都按同一个 Join Key 分桶，比如都按 `user_id` 分 32 个桶
+- `users_bucketed` 相对较小，至少“单个桶”能放进一个 Map 任务的内存
+- `orders_bucketed` 相对较大，不适合整桶放进内存，所以采用流式扫描
+
+每个 Map 任务只处理一对同编号桶：
+
+```text
+Map任务0：处理 orders 桶0 + users 桶0
+Map任务1：处理 orders 桶1 + users 桶1
+...
+Map任务31：处理 orders 桶31 + users 桶31
+```
 
 ```sql
 CREATE TABLE orders_bucketed (
@@ -306,12 +327,31 @@ CREATE TABLE users_bucketed (
 )
 CLUSTERED BY (user_id) INTO 32 BUCKETS;  -- 同样分32个桶
 
--- 设置参数启用桶优化
+-- 设置参数启用 Bucket Map Join
 SET hive.optimize.bucketmapjoin = true;
-SET hive.optimize.bucketmapjoin.sortedmerge = true;
 ```
 
-### 1.2、表结构(大表桶+大表桶) SMB Join（Sort Merge Bucket Join）
+以 `Map任务0` 为例：
+
+```text
+1. 先读取 users 桶0
+  建一个内存 HashMap：
+  key   = user_id
+  value = 这个 user_id 对应的用户记录
+
+2. 再流式扫描 orders 桶0
+  每读到一条订单，就拿 order.user_id 去 HashMap 里查
+
+3. 查到了，就直接输出 Join 结果
+```
+
+所以这个方案可以记成：**小表桶进内存，大表桶一条条扫**。
+
+它不要求桶内排序，只要求两边都按 Join Key 分桶，并且桶号能对应上。适合“事实表 Join 维度表”，比如 `orders` 很大，`users` 相对较小。
+
+### 1.2、表结构：大表桶 + 大表桶（SMB Join / Sort Merge Bucket Join）
+
+在表的定义出增加了`SORTED BY (user_id)`用于在map阶段排序，这样在JOIN条件包含`user_id`时就可以用**Sort Merge Bucket Join**
 
 ```sql
 CREATE TABLE orders_bucketed (
@@ -333,6 +373,47 @@ CLUSTERED BY (user_id)  SORTED BY (user_id) INTO 32 BUCKETS;  -- 同样分32个�
 SET hive.optimize.bucketmapjoin.sortedmerge = true;
 SET hive.auto.convert.sortmerge.join = true;
 ```
+
+如果两张表都很大，比如 `orders_bucketed` 很大，`users_bucketed` 也很大，那么即使只看某一个桶，`users` 的桶也可能放不进内存。这个时候就不能再依赖 HashMap。
+
+SMB Join 的做法是：**两张表不仅要分桶，还要让每个桶内部按 Join Key 排好序**。
+
+所以建表语句里会多出 `SORTED BY (user_id)`：
+
+```sql
+CLUSTERED BY (user_id) SORTED BY (user_id) INTO 32 BUCKETS
+```
+
+这样同一个桶里的数据大概长这样：
+
+```text
+orders 桶0：1001, 1003, 1005, 1008, ...
+users  桶0：1001, 1002, 1005, 1009, ...
+```
+
+Map 任务就可以像“合并两个有序数组”一样，用双指针顺序扫描：
+
+```text
+orders指针 = 1001，users指针 = 1001，相等，输出 Join 结果
+orders指针 = 1003，users指针 = 1002，users 小，users 指针后移
+orders指针 = 1003，users指针 = 1005，orders 小，orders 指针后移
+orders指针 = 1005，users指针 = 1005，相等，输出 Join 结果
+```
+
+所以这个方案可以记成：**两边都不装进内存，而是依赖桶内有序，边读边归并**。
+
+### 1.3、两种方式对比
+
+| 对比项       | Bucket Map Join / HashMap | SMB Join / Sort Merge Bucket Join |
+| --------- | ------------------------- | --------------------------------- |
+| 典型场景      | 大表 Join 小表                | 大表 Join 大表                        |
+| 是否需要分桶    | 需要，两边按 Join Key 分桶        | 需要，两边按 Join Key 分桶                |
+| 是否需要桶内排序  | 不需要                       | 需要 `SORTED BY (join_key)`         |
+| Map 阶段怎么做 | 小表桶加载到 HashMap，大表桶流式扫描    | 两边桶都顺序读取，双指针归并                    |
+| 内存压力      | 取决于小表桶大小                  | 很低，不需要把一边整桶放入内存                   |
+| 核心记忆      | 装小表，扫大表                   | 两边有序，顺序归并                         |
+
+一句话总结：**HashMap 方案靠“内存查找”提速，SMB Join 靠“有序归并”省内存；两者都依赖分桶来避免 Shuffle。**
 
 ### 2、物理存储
 
