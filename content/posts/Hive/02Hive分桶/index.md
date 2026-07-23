@@ -1145,16 +1145,12 @@ Map阶段：
 
 common Join进阶到MapJoin的参数在默认情况下是开启的，涉及的参数如下（最主要的参数`hive.auto.convert.join=true`）
 
-| 参数                                              | 常见默认值      | 含义                                                                                           |
-| ----------------------------------------------- | ---------- | -------------------------------------------------------------------------------------------- |
-| `hive.auto.convert.join`                        | `true`     | 自动将合适的 JOIN 转成 MapJoin<br/>普通 JOIN                                                           |
-| <br/>   ↓                                       |            |                                                                                              |
-| <br/>判断是否有足够小的输入                                |            |                                                                                              |
-| <br/>   ├── 有：转换成 MapJoin                       |            |                                                                                              |
-| <br/>   └── 没有：继续使用 Common Join                 |            |                                                                                              |
-| `hive.auto.convert.join.noconditionaltask`      | `true`     | 满足大小条件时直接生成 MapJoin，和下面的参数配合使用<br/>设置后当编译阶段已经能确定小表足够小时，直接生成 MapJoin 计划，而不保留 Common Join 备用计划 |
-| `hive.auto.convert.join.noconditionaltask.size` | 版本相关       | 直接转换时的小表输入总大小阈值<br/>限制一次 MapJoin 中准备加载到内存的多个小表输入大小总和                                         |
-| `hive.mapjoin.smalltable.filesize`              | `25000000` | 表示输入文件大小，不是小表构建成 HashTable 后的真实内存占用，不是开关                                                     |
+| 参数                                              | 常见默认值      | 含义                                                                                                            |
+| ----------------------------------------------- | ---------- | ------------------------------------------------------------------------------------------------------------- |
+| `hive.auto.convert.join`                        | `true`     | 自动将合适的 JOIN 转成 MapJoin<br/>普通 JOIN<br/> ↓<br/>判断是否有足够小的输入<br/> ├── 有：转换成 MapJoin<br/> └── 没有：继续使用 Common Join |
+| `hive.auto.convert.join.noconditionaltask`      | `true`     | 满足大小条件时直接生成 MapJoin，和下面的参数配合使用<br/>设置后当编译阶段已经能确定小表足够小时，直接生成 MapJoin 计划，而不保留 Common Join 备用计划                  |
+| `hive.auto.convert.join.noconditionaltask.size` | 版本相关       | 直接转换时的小表输入总大小阈值<br/>限制一次 MapJoin 中准备加载到内存的多个小表输入大小总和                                                          |
+| `hive.mapjoin.smalltable.filesize`              | `25000000` | 表示输入文件大小，不是小表构建成 HashTable 后的真实内存占用，不是开关                                                                      |
 
 查看默认值的方法（下面是我在Hive 4.1.0 Docker 环境下的输出情况）
 
