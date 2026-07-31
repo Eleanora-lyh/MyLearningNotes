@@ -1,3 +1,12 @@
+---
+title: "【四_(1)】Hive 七种 JOIN 的区别：NULL 匹配规则与结果对比"
+date: 2026-05-18T22:16:40+08:00
+draft: false
+tags: ["HiveSQL", "FULL OUTER JOIN", "CROSS JOIN", "LEFT SEMI JOIN"]
+categories: ["Hive"]
+description: "通过 orders 和 users 示例表对比 Hive 中 INNER JOIN、LEFT JOIN、RIGHT JOIN、FULL OUTER JOIN、CROSS JOIN、LEFT SEMI JOIN 等 JOIN 类型的匹配规则与结果差异。"
+---
+
 # 1、数据源
 
 连接hive数据库，并创建表表填充数据
