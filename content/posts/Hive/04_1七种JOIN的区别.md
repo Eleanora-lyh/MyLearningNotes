@@ -187,6 +187,100 @@ CROSS JOIN users u;
 
 > SQL 在没有 `ORDER BY` 时不保证结果顺序，表格中的顺序仅用于展示。
 
+### 👉 应用场景
+
+当想一次SQL跑出多种粒度的聚合结果时，很容易想到 [HIVE高级分组聚合的 GROUPING SETS / ROLL UP / CUBE 关键字](https://eleanora-lyh.github.io/MyLearningNotes/posts/hive/07hive%E5%87%BD%E6%95%B0/#%E5%85%AD%E9%AB%98%E7%BA%A7%E5%88%86%E7%BB%84%E8%81%9A%E5%90%88grouping-sets--cube--rollup)
+
+但是还不够灵活，比如现在有5个维度的统计指标
+
+- 如果5个维度之间不存在递进关系，就不能使用`ROLL UP`
+
+- 5个维度完全组合会得到2^5次方=32共32种维度组合，但如果某些组合不想要了，就不能使用 `CUBE`
+
+- 假设只需其中30种的维度组合，全部在`GROUPING SETS` 中声明也很麻烦。而且如果维度变为6个，那么代码又要重新修改。
+
+此时如果将维度组合显示记录在一个辅助表，就可以避免上面的问题。
+
+从数学的角度看，这5个维度的组合就是5个可重复的独立选择，这5个空位分别有两个值可选：不聚合/聚合进而可以抽象成0/255
+
+- `0` 是一个“保留原始维度值”的控制标记。
+
+- `255` 是一个“将该维度替换为 All”的控制标记。
+
+那么事先讲这些组合写入0/255的辅助表如下，和业务表执行 `CROSS JOIN`就自然可以得出所有维度的组合。当想去掉某些维度的聚合时，只需要将列值置为0则不会进入聚合阶段。
+
+下面以完整的32个组合的辅助表AllUpCombinations为例，讲下具体怎么使用
+
+| 维度1 | 维度2 | 维度3 | 维度4 | 维度5 |
+| --- | --- | --- | --- | --- |
+| 0   | 0   | 0   | 0   | 0   |
+| 0   | 0   | 0   | 0   | 255 |
+| 0   | 0   | 0   | 255 | 0   |
+| 0   | 0   | 255 | 0   | 0   |
+| 0   | 255 | 0   | 0   | 0   |
+| ... | ... | ... | ... | ... |
+| 255 | 255 | 255 | 255 | 255 |
+
+当一条记录如下，其中的ContentTypeId, VerticalId,MarketId,LanguageId, DeviceId就对应了我们想要组合的5个维度，也就是辅助表AllUpCombinations的5个维度
+
+```plain
+PartnerID    = P1
+BrandID      = B1
+ContentID    = C1
+ContentType  = Article
+Vertical     = Sports
+Market       = US
+Language     = en-US
+Device       = Mobile
+MUID         = U1
+IsActiveUser = 1
+```
+
+这条记录和 32 行 AllUpCombinations 做 CROSS JOIN 后，这一行会逻辑上扩展成 32 行。以`ContentType` 被置为255为例，讲一下此类型的组合后续会发生什么，其他组合同理。
+
+当某条 `AllUpCombinations` 记录的 `ContentTypeId = 255` 时，该组合下所有原始 `ContentType` 都被映射为统一的 `255`，虽然 `ContentTypeId` 仍出现在分组列中，但由于其值完全相同，效果等同于消除 ContentType 维度。可以理解为此组合下时分组条件从 ContentTypeId, VerticalId,MarketId,LanguageId, DeviceId 5列变为了VerticalId,MarketId,LanguageId, DeviceId 4列
+
+```sql
+ContentPreAgg =
+     SELECT 
+         L.PartnerID,
+         L.BrandID,
+         R.ContentTypeId == 0 ? L.ContentTypeId : 255 AS ContentTypeId,
+         R.VerticalId == 0 ? L.VerticalId : 255 AS VerticalId,
+         R.MarketId == 0 ? L.MarketId : 255 AS MarketId,
+         R.LanguageId == 0 ? L.LanguageId : 255 AS LanguageId,
+         R.DeviceId == 0 ? L.DeviceId : 255 AS DeviceId,
+         UserMUID
+     FROM ContentLevelTable AS L
+         CROSS JOIN AllUpCombinations AS R;
+```
+
+那么此时执行 `COUNT(DISTINCT UserMUID)`，相当于消除了此维度，只留下一个值255，得出结果就是以ContentTypeId维度汇总的数据
+
+```sql
+ContentAgg = 
+     SELECT
+         PartnerID,
+         BrandID,
+         ContentTypeId,
+         VerticalId,
+         MarketId,
+         LanguageId,
+         DeviceId,
+         COUNT(DISTINCT UserMUID) AS PageViewAUCount
+     FROM ContentPreAgg;
+```
+
+以此类推，这样通过一个辅助表AllUpCombinations，就可以通过一次分组得到任意5个维度的所有组合，而不必指定具体维度名字。如果有其他表的其他列也需要进行5个维度的全组合，也可以使用这个辅助表。
+
+最后再总结一下使用CORSS JOIN 辅助表的好处：
+
+- 不依赖特定 `CUBE` 语法，可通过修改资源文件增加或删除某些组合。
+- 可以统一用 `255` 表示 `All`，避免用 `NULL` 与真实空值混淆。
+- 其他表的处理可以复用相近的维度组合逻辑。
+
+如果还是没有看懂，可以详见另一篇文章：[20260806_CROSS JOIN 的神奇用法：灵活生成多维聚合组合](https://eleanora-lyh.github.io/MyLearningNotes/posts/work/%E5%B7%A5%E4%BD%9C%E6%9D%82%E8%B0%8820260806_crossjoin%E7%9A%84%E7%A5%9E%E5%A5%87%E7%94%A8%E6%B3%95/)
+
 ## 3.6 LEFT SEMI JOIN
 
 `LEFT SEMI JOIN` 只返回左表中能与右表匹配的行，且只输出左表的列（相当于 WHERE EXISTS）。
@@ -240,12 +334,12 @@ WHERE NOT EXISTS (
 
 ## 3.8 汇总不同 JOIN 的行为
 
-| Join 类型         | 未匹配 NULL 行是否保留     |
-| --------------- | ------------------ |
-| INNER JOIN      | 不保留                |
-| LEFT JOIN       | 保留左表 NULL Key 行    |
-| RIGHT JOIN      | 保留右表 NULL Key 行    |
-| FULL OUTER JOIN | 左右两边分别保留           |
+| Join 类型         | 未匹配 NULL 行是否保留          |
+| --------------- | ----------------------- |
+| INNER JOIN      | 不保留                     |
+| LEFT JOIN       | 保留左表 NULL Key 行         |
+| RIGHT JOIN      | 保留右表 NULL Key 行         |
+| FULL OUTER JOIN | 左右两边分别保留                |
 | LEFT SEMI JOIN  | 普通等值条件下不保留左表 NULL Key 行 |
 | LEFT ANTI JOIN  | 普通等值条件下保留左表 NULL Key 行  |
 
