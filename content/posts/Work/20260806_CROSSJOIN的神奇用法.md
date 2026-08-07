@@ -1,5 +1,5 @@
 ---
-title: "20260806_CROSS JOIN 的神奇用法：灵活生成多维聚合组合"
+title: "【工作杂谈】20260806_CROSS JOIN 的神奇用法：灵活生成多维聚合组合"
 date: 2026-08-06T22:17:08+08:00
 draft: false
 tags: ["HiveSQL", "CROSS JOIN", "多维聚合", "GROUPING SETS"]
