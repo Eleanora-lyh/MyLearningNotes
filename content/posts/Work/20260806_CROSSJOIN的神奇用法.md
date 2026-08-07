@@ -86,7 +86,7 @@ CROSS JOIN users u;
 
 当想一次SQL跑出多种粒度组合的聚合结果时，很容易想到 [HIVE高级分组聚合的 GROUPING SETS / ROLL UP / CUBE 关键字](https://eleanora-lyh.github.io/MyLearningNotes/posts/hive/07hive%E5%87%BD%E6%95%B0/#%E5%85%AD%E9%AB%98%E7%BA%A7%E5%88%86%E7%BB%84%E8%81%9A%E5%90%88grouping-sets--cube--rollup)
 
-但是有些情况还不够灵活，比如现在有5个维度的统计指标
+但是有些情况还不够灵活，比如现在针对一条用户行为有5个维度，用于记录用户行为，5个维度dimensions是：所属市场Market、阅读语言Language、使用设备Device、内容类型ContentType、垂直分组Vertical（比如说Sports栏目）
 
 - 如果5个维度之间不存在递进关系，就不能使用`ROLL UP`
 
@@ -169,6 +169,8 @@ ContentAgg =
 ```
 
 以此类推，这样通过一个辅助表AllUpCombinations，就可以通过一次分组得到任意5个维度的所有组合，而不必指定具体维度名字。如果有其他表的其他列也需要进行5个维度的全组合，也可以使用。
+
+在中文理解上，这里相当于以VerticalId,MarketId,LanguageId, DeviceId组合起来的角度去查某篇文章的ActiveUserCount
 
 ## 2.3 详细步骤
 
@@ -292,6 +294,8 @@ P1         B1       1              10          20        30          40        2
 P1         B1       2              10          20        30          40        2
 ```
 
+
+
 ### 2.3.2 第二个组合：255 0 0 0 0
 
 当组合为：`255 0 0 0 0`，表示ContentType 上卷为 All。执行下面的代码后
@@ -354,7 +358,7 @@ P1         B1       255            10          20        30          40        3
 
 所以这时候使用CROSS JOIN辅助表的优势就会越来越明显，因为一次`CROSS JOIN`可以得出多个维度组合的统计，不仅比分开写多条GROUP BY的代码更简洁，还减少对原始表的重复扫描，并减少了Reduce的次数。
 
-# CROSS JOIN扩展维度的优势
+# 3、CROSS JOIN扩展维度的优势
 
 最后再总结一下使用CORSS JOIN 辅助表的好处：
 
