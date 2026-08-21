@@ -283,7 +283,7 @@ ContentAgg =
 
 ## 3.6 LEFT SEMI JOIN
 
-`LEFT SEMI JOIN` 只返回左表中能与右表匹配的行，且只输出左表的列（相当于 WHERE EXISTS）。
+`LEFT SEMI JOIN` 只返回左表中能与右表匹配的行，**且只输出左表的列**（相当于 WHERE EXISTS）。
 
 ```sql
 SELECT o.*

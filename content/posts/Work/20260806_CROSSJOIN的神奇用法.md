@@ -80,33 +80,98 @@ CROSS JOIN users u;
 
 > SQL 在没有 `ORDER BY` 时不保证结果顺序，表格中的顺序仅用于展示。
 
-# 2、应用场景
+# 2、大数据下的应用场景
 
-## 2.1 问题出现背景+以及CROSS JOIN引入
+## 2.1 引入分组聚合函数
 
-当想一次SQL跑出多种粒度组合的聚合结果时，很容易想到 [HIVE高级分组聚合的 GROUPING SETS / ROLL UP / CUBE 关键字](https://eleanora-lyh.github.io/MyLearningNotes/posts/hive/07hive%E5%87%BD%E6%95%B0/#%E5%85%AD%E9%AB%98%E7%BA%A7%E5%88%86%E7%BB%84%E8%81%9A%E5%90%88grouping-sets--cube--rollup)
+假设`SourceTable`表的记录如下，其中的`Col1, Col2,Col3,Col4, Col5` 对应了我们关注的5个统计维度
 
-但是有些情况还不够灵活，比如现在针对一条用户行为有5个维度，用于记录用户行为，5个维度dimensions是：所属市场Market、阅读语言Language、使用设备Device、内容类型ContentType、垂直分组Vertical（比如说Sports栏目）
+| PartnerID | BrandID | ContentID | Col1    | Col2 | Col3 | Col4 | Col5   | UserMUID |
+| --------- | ------- | --------- | ------- | ---- | ---- | ---- | ------ | -------- |
+| P1        | B1      | C1        | Video   | 10   | App  | CN   | Sports | U1       |
+| P1        | B1      | C1        | Video   | 30   | Web  | CN   | Finace | U1       |
+| P1        | B1      | C1        | Artical | 20   | App  | CN   | Finace | U2       |
+| P1        | B1      | C1        | Artical | 10   | App  | CN   | Sports | U1       |
+
+如果想探究`Col1`与用户的关系，那么就需要计算在不同的Col1值下 User的数量，也就是下面的sql
+
+```sql
+select Col1,Count(distinct UserMUID)
+from SourceTable
+group by Col1
+```
+
+同理如果想探究`Col2, cols3, col4 col5`与用户的关系，那么就需要计算在不同的`Col2, cols3, col4 col5`值下 User的数量，也就是下面的sql
+
+```sql
+select Col2,Count(distinct UserMUID)
+from SourceTable
+group by Col2
+
+select Col3,Count(distinct UserMUID)
+from SourceTable
+group by Col3
+
+select Col4,Count(distinct UserMUID)
+from SourceTable
+group by Col4
+
+select Col5,Count(distinct UserMUID)
+from SourceTable
+group by Col5
+```
+
+现在问题变得更复杂，如果想探究`Col1, Col2`的组合与用户的关系，那么就需要写重新sql进行计算
+
+回想一下数学种的统计知识，已知`Col1, Col2, cols3, col4 col5`这5个维度是互不干扰的，且每个维度的值都不为空，那么其所有的组合就是对5个位置的独立选择，这5个空位分别有两个值可选：存在/不存在。最后会得到2的5次方=32共32种组合
+
+那么如果我们想全面地分析维度与用户数量的关系，就应该得到32个类似上面的sql。很显然这种做法很蠢，是白白浪费代码和时间，属于是在时间和空间上都不讨巧的笨蛋做法。
+
+所以早在1996年就有人提出了更加优秀的解决办法：**分组聚合函数**
+
+使用分组聚合函数`ROLLUP / CUBE / GROUPING SETS`可以用一个sql直接生成上面32种维度的聚合结果指定维度的组合，
+
+> ## 大数据领域 OLAP 分组扩展引入时间线
+> 
+> | 时间点             | 事件                                                             |
+> | --------------- | -------------------------------------------------------------- |
+> | 1996            | Gray 等学者在论文中提出 CUBE 概念                                         |
+> | 1999–2002       | SQL:1999 标准正式纳入 ROLLUP / CUBE / GROUPING SETS                  |
+> | **~2012–2013**​ | **Hive 0.10.0 引入 GROUPING SETS、CUBE、ROLLUP(Hadoop 生态最早原生支持**​) |
+> | **2015 年中**​    | **Spark 1.4.0 在 DataFrame API 中引入 CUBE 算子**​                   |
+> | **2015 年底**​    | **Spark 1.6 补齐 rollup()，DataFrame API 多维聚合能力完整**​              |
+> | 2016            | PostgreSQL 9.5 才支持 CUBE / ROLLUP / GROUPING SETS               |
+> | 2017            | Hive 2.3.0 对齐标准 SQL 的 GROUPING 语义                              |
+
+由于这篇文章不是为了介绍分组聚合函数的，所以对三个关键字不熟悉或者感兴趣的同学可以看我这篇文章：[HIVE高级分组聚合的 GROUPING SETS / ROLL UP / CUBE 关键字](https://eleanora-lyh.github.io/MyLearningNotes/posts/hive/07hive%E5%87%BD%E6%95%B0/#%E5%85%AD%E9%AB%98%E7%BA%A7%E5%88%86%E7%BB%84%E8%81%9A%E5%90%88grouping-sets--cube--rollup)
+
+## 2.2 引入CROSS JOIN搭配辅助表
+
+当想一次SQL跑出多种维度组合的聚合结果时，很容易想到 [HIVE高级分组聚合的 GROUPING SETS / ROLL UP / CUBE 关键字](https://eleanora-lyh.github.io/MyLearningNotes/posts/hive/07hive%E5%87%BD%E6%95%B0/#%E5%85%AD%E9%AB%98%E7%BA%A7%E5%88%86%E7%BB%84%E8%81%9A%E5%90%88grouping-sets--cube--rollup)
+
+但是有些情况还不够灵活：
 
 - 如果5个维度之间不存在递进关系，就不能使用`ROLL UP`
 
-- 5个维度完全组合会得到2^5次方=32共32种维度组合，但如果某些组合不想要了，就不能使用 `CUBE`
+- 5个维度完全组合会得到2^5次方=32共32种维度组合，但如果某些组合不想要了，就不能使用 `CUBE`（`CUBE`是自动按照维度计算全组合的）
 
-- 假设只需其中30种的维度组合，全部在`GROUPING SETS` 中声明也很麻烦。而且如果维度变为6个，那么代码又要重新修改。
+- 假设只需其中30种的维度组合，全部都在`GROUPING SETS` 中一个个声明也很麻烦。而且如果维度从5个变为6个，那么代码又要重新修改。
 
-## 2.2 使用方法
+**此时如果将维度组合显示记录在一个辅助表`DimensionCombinations`，就可以避免上面的问题：**
 
-此时如果将维度组合显示记录在一个辅助表，就可以避免上面的问题。
-
-从数学的角度看，这5个维度的组合就是5个可重复的独立选择，这5个空位分别有两个值可选：不聚合/聚合进而可以抽象成0/255
+从数学的角度看，这5个维度的组合就是5个可重复的独立选择，这5个空位分别有两个值可选：不聚合/聚合，分别可以抽象成0/255
 
 - `0` 是一个“保留原始维度值”的控制标记。
 
 - `255` 是一个“将该维度替换为 All”的控制标记。
 
-那么事先讲这些组合写入0/255的辅助表如下，和业务表执行 `CROSS JOIN`就自然可以得出所有维度的组合。当想去掉某些维度的聚合时，只需要将列值置为0则不会进入聚合阶段。
+那么事先将这些组合写入0/255的辅助表中，再和业务表执行 `CROSS JOIN`就自然可以得出所有维度的组合。当想去掉某些维度的聚合时，只需要将列值置为0则不会进入聚合阶段。
 
-下面以完整的32个组合的辅助表AllUpCombinations为例，讲下具体怎么使用
+这里的做法我觉得很类似用空间换时间的算法，我们提前将表进行膨胀组合，就省去了后面多次按照不同维度的聚合。
+
+---
+
+下面以完整的32个组合的辅助表`DimensionCombinations`为例，讲下具体怎么使用
 
 | 维度1 | 维度2 | 维度3 | 维度4 | 维度5 |
 | --- | --- | --- | --- | --- |
@@ -118,243 +183,233 @@ CROSS JOIN users u;
 | ... | ... | ... | ... | ... |
 | 255 | 255 | 255 | 255 | 255 |
 
-当一条记录如下，其中的ContentTypeId, VerticalId,MarketId,LanguageId, DeviceId就对应了我们想要组合的5个维度，也就是辅助表AllUpCombinations的5个维度
+当一条记录如下，其中的`Col1, Col2,Col3,Col4, Col5 `对应了我们关注的5个数据维度，分别对应辅助表`DimensionCombinations` 会进行组合的5个维度
 
-```plain
-PartnerID    = P1
-BrandID      = B1
-ContentID    = C1
-ContentType  = Article
-Vertical     = Sports
-Market       = US
-Language     = en-US
-Device       = Mobile
-MUID         = U1
-IsActiveUser = 1
-```
+| PartnerID | BrandID | ContentID | Col1  | Col2 | Col3 | Col4 | Col5   | UserMUID |
+| --------- | ------- | --------- | ----- | ---- | ---- | ---- | ------ | -------- |
+| P1        | B1      | C1        | Video | 10   | App  | CN   | Sports | U1       |
 
-这条记录和 32 行 AllUpCombinations 做 CROSS JOIN 后，这一行会逻辑上扩展成 32 行。以`ContentType` 被置为255为例，讲一下此类型的组合后续会发生什么，其他组合同理。
+这条记录和 辅助表的32 行 做 `CROSS JOIN` 后，这一行会在逻辑上扩展成 32 行。
 
-当某条 `AllUpCombinations` 记录的 `ContentTypeId = 255` 时，该组合下所有原始 `ContentType` 都被映射为统一的 `255`，虽然 `ContentTypeId` 仍出现在分组列中，但由于其值完全相同，效果等同于消除 ContentType 维度。可以理解为此组合下时分组条件从 ContentTypeId, VerticalId,MarketId,LanguageId, DeviceId 5列变为了VerticalId,MarketId,LanguageId, DeviceId 4列
+以`Col1` 被置为255为例，讲一下此类型的组合后续会发生什么，其他组合同理。
+
+当某条 `DimensionCombinations` 记录的 `Col1 = 255` 时，该组合下所有原始 `Col1` 都被映射为统一的 `255`，虽然 `Col1` 仍出现在分组列中，但由于其值完全相同，效果等同于消除 `Col1` 维度。可以理解为此组合下时分组条件从 `Col1, Col2,Col3,Col4, Col5` 的5列变为了`Col2,Col3,Col4,Col5` 的4列
 
 ```sql
-ContentPreAgg =
+ExtendedResult =
      SELECT 
          L.PartnerID,
          L.BrandID,
-         R.ContentTypeId == 0 ? L.ContentTypeId : 255 AS ContentTypeId,
-         R.VerticalId == 0 ? L.VerticalId : 255 AS VerticalId,
-         R.MarketId == 0 ? L.MarketId : 255 AS MarketId,
-         R.LanguageId == 0 ? L.LanguageId : 255 AS LanguageId,
-         R.DeviceId == 0 ? L.DeviceId : 255 AS DeviceId,
+         R.Col1 == 0 ? L.Col1 : 255 AS Col1 ,
+         R.Col2 == 0 ? L.Col2 : 255 AS Col2 ,
+         R.Col3 == 0 ? L.Col3 : 255 AS Col3 ,
+         R.Col4 == 0 ? L.Col4 : 255 AS Col4 ,
+         R.Col5 == 0 ? L.Col5 : 255 AS Col5 ,
          UserMUID
-     FROM ContentLevelTable AS L
-         CROSS JOIN AllUpCombinations AS R;
+     FROM SourceTable AS L
+         CROSS JOIN DimensionCombinations AS R;
 ```
 
-那么此时执行 `COUNT(DISTINCT UserMUID)`，相当于消除了此维度，只留下一个值255，得出结果就是以ContentTypeId维度汇总的数据
+那么此时再执行 `COUNT(DISTINCT UserMUID)`（如下），膨胀出来的32行的具有相同的`UserMUID`，`CROSS JOIN`只是提前将所有统计维度提前应用到原始行上，组合结果中如果`Col1 = 255`则表示消除了此维度，只留下一个值255
+
+中文的含义就是以`Col1=all`维度的汇总数据
 
 ```sql
-ContentAgg = 
+AggResult = 
      SELECT
          PartnerID,
          BrandID,
-         ContentTypeId,
-         VerticalId,
-         MarketId,
-         LanguageId,
-         DeviceId,
-         COUNT(DISTINCT UserMUID) AS PageViewAUCount
-     FROM ContentPreAgg;
+         Col1 ,
+         Col2 ,
+         Col3 ,
+         Col4 ,
+         Col5 ,
+         COUNT(DISTINCT UserMUID) AS AUCount
+     FROM ExtendedResult;
 ```
 
-以此类推，这样通过一个辅助表AllUpCombinations，就可以通过一次分组得到任意5个维度的所有组合，而不必指定具体维度名字。如果有其他表的其他列也需要进行5个维度的全组合，也可以使用。
+以此类推，这样通过一个辅助表`DimensionCombinations`，就可以通过一次分组计算得到任意5个维度的所有组合，而不必指定具体维度名字。如果有其他表的其他列也需要进行5个维度的全组合，也可以使用同样的辅助表。
 
-在中文理解上，这里相当于以VerticalId,MarketId,LanguageId, DeviceId组合起来的角度去查某篇文章的ActiveUserCount
+以这种方式来计算多维度下的统计数据，可以减少计算资源的浪费，因为只读取了一次源数据，就得到了所有维度的统计结果，避免了重复读取。
 
 ## 2.3 详细步骤
 
 如果上面的使用方法的抽象概念没有看懂，可以看下这里的分步详解；如果上面的讲解能够理解，这一小节可以跳过。
 
-表还是ContentLevelTable，以下面的记录为例
+表还是SourceTable，以下面的记录为例
+
+| PartnerID | BrandID | ContentID | Col1    | Col2 | Col3 | Col4 | Col5   | UserMUID |
+| --------- | ------- | --------- | ------- | ---- | ---- | ---- | ------ | -------- |
+| P1        | B1      | C1        | Video   | 10   | App  | CN   | Sports | U1       |
+| P1        | B1      | C1        | Video   | 30   | Web  | CN   | Finace | U1       |
+| P1        | B1      | C1        | Artical | 20   | App  | CN   | Finace | U2       |
+| P1        | B1      | C1        | Artical | 10   | App  | CN   | Sports | U1       |
+
+为了便于理解，暂时不看`DimensionCombinations`的全部 32 行，只取下面两个组合：
 
 ```plain
-PartnerID  BrandID  ContentTypeId  VerticalId  MarketId  LanguageId  DeviceId  UserMUID
-P1         B1       1              10          20        30          40        U1
-P1         B1       2              10          20        30          40        U1
-P1         B1       1              10          20        30          40        U2
-P1         B1       2              10          20        30          40        U3
-```
-
-为了便于理解，暂时不看AllUpCombinations的全部 32 行，只取下面两个组合：
-
-```plain
-ContentTypeId  VerticalId  MarketId  LanguageId  DeviceId
-0              0           0         0           0
-255            0           0         0           0
+Col1    Col2    Col3    Col4    Col5
+255     0       0       0       0
+255     255     0       0       255
 ```
 
 它们分别表示：
 
 ```plain
-0   0 0 0 0  = 五个维度全部保留原值
-255 0 0 0 0  = ContentType 上卷为 All，其他四个维度保留原值
+255 0 0 0 0  = Col1 上卷为 All，其他四个维度保留原值
+255 255 0 0 255  = Col1、Col2、Col5 上卷为 All，其他两个维度保留原值
 ```
 
 代码中的表达式：
 
 ```sql
-R.ContentTypeId == 0 ? L.ContentTypeId : 255 AS ContentTypeId
+R.Col1 == 0 ? L.Col1 : 255 AS Col1
 ```
 
 含义是：
 
 ```sql
-R.ContentTypeId = 0
-    => 输出 L.ContentTypeId，保留原值
+R.Col1 = 0
+    => 输出 L.Col1，保留原值
 
-R.ContentTypeId = 255
-    => 输出 255，表示 All Content Types
+R.Col1 = 255
+    => 输出 255，表示 All Col1 Types
 ```
 
-原始四条数据经过下面的sql转换后
+原始4条数据经过下面的sql转换后
 
 ```sql
-ContentPreAgg =
+ExtendedResult =
      SELECT 
          L.PartnerID,
          L.BrandID,
-         R.ContentTypeId == 0 ? L.ContentTypeId : 255 AS ContentTypeId,
-         R.VerticalId == 0 ? L.VerticalId : 255 AS VerticalId,
-         R.MarketId == 0 ? L.MarketId : 255 AS MarketId,
-         R.LanguageId == 0 ? L.LanguageId : 255 AS LanguageId,
-         R.DeviceId == 0 ? L.DeviceId : 255 AS DeviceId,
+         L.ContentID,
+         R.Col1 == 0 ? L.Col1 : 255 AS Col1 ,
+         R.Col2 == 0 ? L.Col2 : 255 AS Col2 ,
+         R.Col3 == 0 ? L.Col3 : 255 AS Col3 ,
+         R.Col4 == 0 ? L.Col4 : 255 AS Col4 ,
+         R.Col5 == 0 ? L.Col5 : 255 AS Col5 ,
          UserMUID
-     FROM ContentLevelTable AS L
-         CROSS JOIN AllUpCombinations AS R;
+     FROM SourceTable AS L
+         CROSS JOIN DimensionCombinations AS R;
 ```
 
-### 2.3.1 第一个组合：0 0 0 0 0
+就会膨胀得到4*32行，表示原始行与32个维度的组合
 
-第一个组合`0 0 0 0 0` 的全部保留原值，仍然是
+### 2.3.1 第一个组合：255 0 0 0 0
 
-```plain
-PartnerID  BrandID  ContentTypeId  VerticalId  MarketId  LanguageId  DeviceId  UserMUID
-P1         B1       1              10          20        30          40        U1
-P1         B1       2              10          20        30          40        U1
-P1         B1       1              10          20        30          40        U2
-P1         B1       2              10          20        30          40        U3
-```
-
-之后对输出列进行分组
+当组合为：`255 0 0 0 0`，表示Col1 上卷为 All。执行下面的代码后
 
 ```sql
-ContentAgg = 
-     SELECT
-         PartnerID,
-         BrandID,
-         ContentTypeId,
-         VerticalId,
-         MarketId,
-         LanguageId,
-         DeviceId,
-         COUNT(DISTINCT UserMUID) AS PageViewAUCount
-     FROM ContentPreAgg;
-```
-
- 语义等价于
-
-```sql
-ContentAgg = 
-     SELECT
-         PartnerID,
-         BrandID,
-         ContentTypeId,
-         VerticalId,
-         MarketId,
-         LanguageId,
-         DeviceId,
-         COUNT(DISTINCT UserMUID) AS PageViewAUCount
-     FROM ContentPreAgg
-     GROUP BY
-        PartnerID,
-        BrandID,
-        ContentTypeId,
-        VerticalId,
-        MarketId,
-        LanguageId,
-        DeviceId
-```
-
-会得到聚合数据如下
-
-```plain
-PartnerID  BrandID  ContentTypeId  VerticalId  MarketId  LanguageId  DeviceId  PageViewAUCount
-P1         B1       1              10          20        30          40        2
-P1         B1       2              10          20        30          40        2
-```
-
-
-
-### 2.3.2 第二个组合：255 0 0 0 0
-
-当组合为：`255 0 0 0 0`，表示ContentType 上卷为 All。执行下面的代码后
-
-```sql
-ContentPreAgg =
+ExtendedResult =
      SELECT 
          L.PartnerID,
          L.BrandID,
-         R.ContentTypeId == 0 ? L.ContentTypeId : 255 AS ContentTypeId,
-         R.VerticalId == 0 ? L.VerticalId : 255 AS VerticalId,
-         R.MarketId == 0 ? L.MarketId : 255 AS MarketId,
-         R.LanguageId == 0 ? L.LanguageId : 255 AS LanguageId,
-         R.DeviceId == 0 ? L.DeviceId : 255 AS DeviceId,
+         L.ContentID,
+         R.Col1 == 0 ? L.Col1 : 255 AS Col1 ,
+         R.Col2 == 0 ? L.Col2 : 255 AS Col2 ,
+         R.Col3 == 0 ? L.Col3 : 255 AS Col3 ,
+         R.Col4 == 0 ? L.Col4 : 255 AS Col4 ,
+         R.Col5 == 0 ? L.Col5 : 255 AS Col5 ,
          UserMUID
-     FROM ContentLevelTable AS L
-         CROSS JOIN AllUpCombinations AS R;
+     FROM SourceTable AS L
+         CROSS JOIN DimensionCombinations AS R;
 ```
 
-表达式会把每条记录的 ContentTypeId 都改成 255：
+表达式会把每条记录的 Col1 都改成 255，此时Col1=all（即不再区分 Col1），第一行、第四行的数据在Col1~Col5这几列是完全一致的
 
-```plain
-PartnerID  BrandID  ContentTypeId  VerticalId  MarketId  LanguageId  DeviceId  UserMUID
-P1         B1       255            10          20        30          40        U1
-P1         B1       255            10          20        30          40        U1
-P1         B1       255            10          20        30          40        U2
-P1         B1       255            10          20        30          40        U3
-```
+| PartnerID | BrandID | ContentID | Col1 | Col2 | Col3 | Col4 | Col5   | UserMUID |
+| --------- | ------- | --------- | ---- | ---- | ---- | ---- | ------ | -------- |
+| P1        | B1      | C1        | 255  | 10   | App  | CN   | Sports | U1       |
+| P1        | B1      | C1        | 255  | 30   | Web  | CN   | Finace | U1       |
+| P1        | B1      | C1        | 255  | 20   | App  | CN   | Finace | U2       |
+| P1        | B1      | C1        | 255  | 10   | App  | CN   | Sports | U1       |
 
-注意，U1 出现了两次，因为 U1 看过两种 ContentType。之后依然按照输出的七列进行分组：
+这部分数据再进行分组
 
 ```sql
-ContentAgg = 
+AggResult = 
      SELECT
          PartnerID,
          BrandID,
-         ContentTypeId,
-         VerticalId,
-         MarketId,
-         LanguageId,
-         DeviceId,
-         COUNT(DISTINCT UserMUID) AS PageViewAUCount
-     FROM ContentPreAgg;
+         ContentID,
+         Col1,
+         Col2,
+         Col3,
+         Col4,
+         Col5,
+         COUNT(DISTINCT UserMUID) AS AUCount
+     FROM ExtendedResult;
 ```
 
-但此时 ContentTypeId 对所有记录都是 255，所以在效果上，确实相当于不再区分 ContentTypeId
+统计结果如下
 
-```plain
-PartnerID  BrandID  ContentTypeId  VerticalId  MarketId  LanguageId  DeviceId  PageViewAUCount
-P1         B1       255            10          20        30          40        3
+| PartnerID | BrandID | ContentID | Col1 | Col2 | Col3 | Col4 | Col5   | AUCount |
+| --------- | ------- | --------- | ---- | ---- | ---- | ---- | ------ | ------- |
+| P1        | B1      | C1        | 255  | 10   | App  | CN   | Sports | 1       |
+| P1        | B1      | C1        | 255  | 30   | Web  | CN   | Finace | 1       |
+| P1        | B1      | C1        | 255  | 20   | App  | CN   | Finace | 1       |
+
+需要注意由于原来的第一行和第四行是同一个用户，所以ActiveUser通过DISTINCT只能算作一个
+
+### 2.3.2 第一个组合：255 255 0 0 255
+
+当组合为：`255 255 0 0 255`，表示Col1,Col2,Col5 上卷为 All。执行下面的代码后
+
+```sql
+ExtendedResult =
+     SELECT 
+         L.PartnerID,
+         L.BrandID,
+         L.ContentID,
+         R.Col1 == 0 ? L.Col1 : 255 AS Col1 ,
+         R.Col2 == 0 ? L.Col2 : 255 AS Col2 ,
+         R.Col3 == 0 ? L.Col3 : 255 AS Col3 ,
+         R.Col4 == 0 ? L.Col4 : 255 AS Col4 ,
+         R.Col5 == 0 ? L.Col5 : 255 AS Col5 ,
+         UserMUID
+     FROM SourceTable AS L
+         CROSS JOIN DimensionCombinations AS R;
 ```
 
-因为去重后的用户是 U1、U2、U3，所以All ContentType PageViewAUCount = 3
+表达式会把每条记录的 Col1,Col2,Col5 的值都改成 255，此时Col1=all, Col2=all,  Col5=all,（即不再区分 Col1,Col2,Col5），第一行、第三行、第四行的数据在Col1~Col5这几列是完全一致的
+
+| PartnerID | BrandID | ContentID | Col1 | Col2 | Col3 | Col4 | Col5 | UserMUID |
+| --------- | ------- | --------- | ---- | ---- | ---- | ---- | ---- | -------- |
+| P1        | B1      | C1        | 255  | 255  | App  | CN   | 255  | U1       |
+| P1        | B1      | C1        | 255  | 255  | Web  | CN   | 255  | U1       |
+| P1        | B1      | C1        | 255  | 255  | App  | CN   | 255  | U2       |
+| P1        | B1      | C1        | 255  | 255  | App  | CN   | 255  | U1       |
+
+这部分数据再进行分组
+
+```sql
+AggResult = 
+     SELECT
+         PartnerID,
+         BrandID,
+         ContentID,
+         Col1,
+         Col2,
+         Col3,
+         Col4,
+         Col5,
+         COUNT(DISTINCT UserMUID) AS AUCount
+     FROM ExtendedResult;
+```
+
+统计结果如下
+
+| PartnerID | BrandID | ContentID | Col1 | Col2 | Col3 | Col4 | Col5 | AUCount |
+| --------- | ------- | --------- | ---- | ---- | ---- | ---- | ---- | ------- |
+| P1        | B1      | C1        | 255  | 255  | App  | CN   | 255  | 2       |
+| P1        | B1      | C1        | 255  | 255  | Web  | CN   | 255  | 1       |
 
 ### 2.3.3 组合总结
 
 通过上面的两种组合的案例，应该可以很好地将这个逻辑扩展到剩余的组合中。
 
-当初始表的维度为5个时，光统计一个AUCount（ActiveUserCount）指标我们就可以膨胀出2^5=32条记录。也就是说随着表的维度增加，统计的指标增加，最终膨胀出的行数是以指数级别扩张的。
+当初始表的维度为5个时，光统计一个AUCount（ActiveUserCount）指标我们就可以膨胀出2^5=32倍的记录。也就是说随着表的维度增加，统计的指标增加，最终膨胀出的行数是以指数级别扩张的。（当数据量达到千万以上时需要注意数据倾斜的问题）
 
 所以这时候使用CROSS JOIN辅助表的优势就会越来越明显，因为一次`CROSS JOIN`可以得出多个维度组合的统计，不仅比分开写多条GROUP BY的代码更简洁，还减少对原始表的重复扫描，并减少了Reduce的次数。
 
