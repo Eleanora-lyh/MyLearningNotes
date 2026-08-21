@@ -1,6 +1,6 @@
 ---
-title: "【工作杂谈】20260810_统计概念之 Active User：定义、常见应用与数据建模"
-date: 2026-08-10T00:00:00+08:00
+title: "【工作杂谈】20260810_统计概念之 Active User：定义与常见应用"
+date: 2026-08-10T23:58:04+08:00
 draft: false
 tags: ["Active User", "AU", "用户分析", "漏斗分析", "留存分析"]
 categories: ["工作杂谈"]
