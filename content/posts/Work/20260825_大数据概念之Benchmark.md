@@ -1,8 +1,8 @@
 ---
 title: "【工作杂谈】20260825_大数据概念之 Benchmark 与 Baseline：从基准测试到生产基线"
-date: 2026-08-25T00:00:00+08:00
+date: 2026-08-25T19:14:25+08:00
 draft: false
-tags: ["Benchmark", "Baseline", "性能测试", "性能回归", "容量规划", "大数据"]
+tags: ["Benchmark", "Baseline", "性能测试", "性能回归", "容量规划"]
 categories: ["工作杂谈"]
 description: "系统梳理 Benchmark 与 Baseline 的定义、区别和关系，并通过技术选型、性能回归、容量规划、生产监控和数据质量等场景说明如何落地。"
 ---
