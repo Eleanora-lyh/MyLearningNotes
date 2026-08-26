@@ -1,7 +1,9 @@
 ---
-title: "【工作杂谈】20260806_CROSS JOIN 的神奇用法：灵活生成多维聚合组合"
+title: "【工作杂谈_20260806】多维分析与数据建模: CROSS JOIN 实战：灵活生成多维聚合组合"
 date: 2026-08-06T22:17:08+08:00
 draft: false
+aliases:
+    - "/posts/work/20260806_crossjoin的神奇用法/"
 tags: ["HiveSQL", "CROSS JOIN", "多维聚合", "GROUPING SETS"]
 categories: ["工作杂谈"]
 description: "介绍如何通过 CROSS JOIN 和维度组合辅助表灵活生成多维聚合结果，并对比 GROUPING SETS、ROLLUP 与 CUBE 的适用场景。"

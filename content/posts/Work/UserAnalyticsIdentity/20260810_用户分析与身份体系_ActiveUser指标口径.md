@@ -1,7 +1,9 @@
 ---
-title: "【工作杂谈】20260810_统计概念之 Active User：定义与常见应用"
+title: "【工作杂谈_20260810】用户分析与身份体系: Active User：定义、计算口径与常见应用"
 date: 2026-08-10T23:58:04+08:00
 draft: false
+aliases:
+    - "/posts/work/20260810_统计概念之activeuser/"
 tags: ["Active User", "AU", "用户分析", "漏斗分析", "留存分析"]
 categories: ["工作杂谈"]
 description: "系统梳理 Active User（AU）的定义与 DAU、WAU、MAU 口径，介绍多维分析、漏斗分析和留存分析的计算方法，以及 AU 在数据模型中的设计原则。"
