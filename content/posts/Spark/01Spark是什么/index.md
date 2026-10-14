@@ -1,12 +1,21 @@
+---
+title: "【一】Spark 是什么：组件、应用场景与发展简史"
+date: 2026-10-13T18:33:19+08:00
+draft: false
+tags: ["Spark", "Spark Core", "Spark SQL", "Spark Streaming", "MLlib", "GraphX"]
+categories: ["Spark"]
+description: "介绍 Spark 的核心定位与组件体系，梳理其在数据科学和数据处理中的应用场景、发展历程，以及 Pipeline、Stage 与 DAG 执行模型。"
+---
+
 事先声明：内容大部分整理自书籍《Spark快速大数据分析 (图灵程序设计丛书) 》，部分总结和人话是原创，顺便提一嘴书，写的超级好理解，推荐大家读原文展开自己的思考！
 
-
+# 1、Spark的组成部分
 
 **定义**
 
 Spark 是一个用来实现快速而通用的集群计算的平台。可以说它是一个大一统的软件栈，为各种不同应用场景专门设计了多个紧密集成的高级组件，如下：
 
-![](assets/2026-10-13-16-39-19-image.png)
+![Spark 组件与集群管理器](./assets/2026-10-14-10-38-12-image.png)
 
 在速度方面，Spark 扩展了广泛使用的 MapReduce 计算模型，而且高效地支持更多计算模式，包括批处理、迭代算法、交互式查询、流处理。
 
@@ -86,7 +95,7 @@ GraphX 是用来操作图（比如社交网络的朋友关系图）的程序库�
 
 数据科学家在使用 Python 或 Pandas 等传统数据分析工具时所能处理的数据集/训练模型始终受限于单机（GPU只存在一台电脑上），而有了 Spark，再加上购买的云计算资源就能处理更大数据规模的问题。
 
-```plain text
+```plain
 上面是搬运了英文书籍的原文，按我们中国话来说这个岗位对应的人，在大学读计算机视觉/自然语言的研究生毕业找到的AI研发岗工作啦
 ```
 
@@ -100,7 +109,7 @@ Spark 已经为工程师提供了足够的接口来快速实现常见的任务�
 上面是搬运了英文书籍的原文，简单来说就是数据量太大啦，即使充分利用 关系型数据库全部性能 + 代码的多线程计算 还是很慢的任务（因为就算是把代码部署到网页服务器上，实际可利用的也是单机的CPU计算资源），此时就要考虑将传统数据库升级为数据仓库，同时将数据的处理逻辑从代码迁移到数仓任务中，利用分布式计算框架即Spark（通常可以利用>=3台计算机资源）来加速计算过程
 ```
 
-# 3、Spark简史
+# 3、Spark 简史
 
 Spark 是于 2009 年作为一个研究项目在加州大学伯克利分校 RAD 实验室（AMPLab 的前身）诞生。
 
@@ -125,7 +134,7 @@ Spark 最早在 2010 年 3 月开源，并且在 2013 年 6 月交给了 Apache 
 
 两个算子可能跑在不同的机器上，上游某个 task 的输出，下游某个 task 要作为输入来读。解决办法是找个地方"寄存"一下，再网络传输。看一下在Hadoop MapReduce和Spark中都是怎么实现的
 
-# 4、Spark的出现契机
+# 4、详解 Spark 的出现契机
 
 > 实验室中的一些研究人员曾经用过 Hadoop MapReduce。他们发现MapReduce 在迭代计算和交互计算的任务上表现得效率低下。因此，Spark从一开始就是为交互式查询和迭代算法设计的，同时还支持内存式存储和高效的容错机制。
 
@@ -213,19 +222,27 @@ map → filter → map  全在一个 task 里一气呵成，中间不落盘
 
 > **窄依赖之间不落盘，可以流水线；遇到宽依赖（Shuffle）才必须落盘。**
 
-### 三个粒度：Pipeline / Stage / DAG
+### Pipeline / Stage / DAG 来优化执行过程
 
-这三者的关系，是**执行方式 → 逻辑边界 → 全局编排**的递进：
+| 概念           | 是什么                                  | 关注的问题           |
+| ------------ | ------------------------------------ | --------------- |
+| **算子**       | `map`、`filter`、`reduceByKey` 等数据处理操作 | 数据怎么变换？         |
+| **DAG**      | 数据集及其依赖构成的有向无环图                      | 整体计算依赖是什么？      |
+| **Stage**    | 由 Shuffle 依赖划分出的调度阶段                 | 哪些计算可以在一个阶段完成？  |
+| **Pipeline** | 同一个 Task 内串联执行的操作链                   | 一份数据如何连续经过多个操作？ |
+| **Task**     | 一个 Stage 中针对一个分区的执行任务                | 谁来计算这一份数据？      |
+| **Executor** | 工作节点上运行的 Spark 进程，提供执行线程、缓存等         | Task 实际在哪里运行？   |
 
-| 概念            | 粒度           | 具体描述                                        |
-| ------------- | ------------ | ------------------------------------------- |
-| **Pipeline**​ | Task 内部/局部视角 | 同一个 Stage 内部，窄依赖的算子被串成一条链，一个 Task 一口气跑完     |
-| **Stage**​    | 逻辑边界/切分结果    | 遇到宽依赖（Shuffle 边界）就切一刀，刀前刀后各成一个 Stage        |
-| **DAG**​      | 全局视角         | 整个作业的所有算子、所有 Stage 连成一张有向无环图，描述"谁依赖谁、整体怎么走" |
+它们不是一条简单的上下级链条，而是“计算逻辑”和“执行调度”两个视角：
 
-具体步骤：
+- **计算逻辑**：算子组成 DAG；Shuffle 边界把 DAG 切成 Stage；Stage 内可流水线执行的操作组成 Pipeline。
+- **执行调度**：Stage 按分区生成 Task；Task 被分配给 Executor 执行。
 
-1、Spark 记录用户写下的一系列转换关系，形成逻辑上的 DAG：
+用一个 RDD 按 Key 聚合的例子，把逻辑依赖、Shuffle 边界和 Task 在 Executor 上的执行过程串起来
+
+#### 1、形成逻辑DAG
+
+**Spark 记录用户写下的一系列转换关系，形成逻辑上的 DAG，不立即计算：**
 
 ```mermaid
 flowchart LR
@@ -234,7 +251,7 @@ flowchart LR
 
 这张图里的 6 个方块，其实是 6 个 RDD 对象 + 它们之间的关系（依赖关系），串成图就是DAG。 filter、map、groupByKey 这些都是 transformation（变换），它们的执行结果是一个新的 RDD 引用。
 
-```plain text
+```plain
 rdd0 = sc.textFile("...")          // RDD 0：读取
 rdd1 = rdd0.filter(...)            // RDD 1：filter 变换
 rdd2 = rdd1.map(...)               // RDD 2：map 变换
@@ -242,17 +259,26 @@ rdd3 = rdd2.groupByKey(...)        // RDD 3：shuffle 变换
 rdd4 = rdd3.filter(...)            // RDD 4：filter 变换
 ```
 
-2、Spark 按**宽依赖（Shuffle 边界）**切分得到 stages
+#### 2、切分DAG得到 stages
+
+**collect() 触发 Job，DAG 按宽依赖（Shuffle 边界）切分得到 stages**
 
 Driver 上的 DAGScheduler 沿 RDD 依赖分析计算：
 
 ```textile
-[ Stage 0: map → filter → map ]   ← 全是窄依赖，这一条就是一个pipeline
+[ Stage 0: map → filter → map ]   ← 全是窄依赖，这一条就是一个pipeline可以串联执行
             ↓ Shuffle（落盘 + 网络）
-[ Stage 1: groupByKey → map ]
+[ Stage 1: groupByKey → map ]   ← 把相同 Key 的数据重新组织到同一个分区，形成 Shuffle 依赖
 ```
 
-3、切分之后，执行引擎再对每个 Stage 做两件事：
+**注意：`reduceByKey` 不是全部只在下游 Stage 执行。** 它的实现跨越边界：
+
+- 上游Stage 0：分区内预聚合、Shuffle Write。
+- 下游Stage 1：Shuffle Read、合并聚合。
+
+#### 3、Pipeline 化 + Task 化 后执行Stages的计算
+
+**切分之后，执行引擎再对每个 Stage 做两件事：**
 
 - **Pipeline 化**：把 Stage 内的窄依赖算子合成一条管道，消除中间物化；
 
@@ -277,9 +303,9 @@ Catalyst 逻辑计划 ──(优化)──▶ 物理计划
 同一台机器上的多个 Task 共享 Executor 的 JVM / 内存池
 ```
 
-Stage 0 的 Task 执行上游 Pipeline
+从上一步划分的 [ Stage 0: map → filter → map ] 可知分区内将执行预聚合、Shuffle Write。假设集群有 3 个输入分区，那么实际执行的 Pipeline（map → filter → map）的Task就有3 个。
 
-3 个输入分区，对应 3 个 Task。
+这个3个Task在通过Excutor获取计算资源后会按照上一步设定的pipeline并行处理各自分区的数据。
 
 例如 Task 0 在 Executor 1 上处理输入分区 0：
 
@@ -289,13 +315,11 @@ Stage 0 的 Task 执行上游 Pipeline
 4. 在本分区内合并相同用户的金额。
 5. 按目标分区写出 Shuffle 数据。
 
-**不是先执行完所有分区的 `filter`，再启动另一批 Task 执行 `map`。**
+---
 
-这些操作在同一个 Task 内衔接执行。对于 `filter`、`map` 这类操作，通常通过迭代器逐条传递；预聚合等操作则可能维护状态、缓冲数据，必要时溢写磁盘。
+由于Stage 0聚合数据后由于宽依赖必须将相同Key的数据合并到一起，所以下一步就是 Shuffle（落盘 + 网络）
 
-### 第四步：Shuffle 把相同 Key 汇集到一起
-
-假设三个输入分区中都有用户 `"A"` 的订单：
+假设3个输入分区中都有用户 `"A"` 的订单：
 
 - 输入分区 0：`("A", 10)`、`("A", 20)`
 - 输入分区 1：`("A", 5)`
@@ -305,11 +329,11 @@ Stage 0 的 Task 执行上游 Pipeline
 
 Partitioner 保证这些 `"A"` 的输出属于**同一个目标分区**。负责这个目标分区的下游 Task 会读取三个上游 Task 的相关输出。
 
-Shuffle 不是一个集中处理数据的单独进程，而是**上游写出、下游拉取的分布式数据交换过程**。
+这里就看出 Shuffle 不是一个集中处理数据的单独进程，而是**上游写出、下游拉取的分布式数据交换过程**。
 
-### 第五步：Stage 1 的 Task 执行下游 Pipeline
+---
 
-本例设置了 2 个结果分区，因此 Stage 1 有 2 个 Task。
+Stage 0 结束后才会执行 [ Stage 1: groupByKey → map ]  Shuffle Read、合并聚合。假设集群有2 个输出分区，那么实际执行的 Pipeline（groupByKey → map）的Task就有2 个。
 
 负责 `"A"` 所在分区的 Task：
 
@@ -318,11 +342,9 @@ Shuffle 不是一个集中处理数据的单独进程，而是**上游写出、�
 3. 执行后面的 `map`，生成 `"A,50"`。
 4. 将结果返回 Driver。
 
-在这个简单 Job 中，上游 Shuffle 输出准备好后，下游 Stage 才能执行。
+---
 
-### 第六步：Executor 提供资源，不决定计算边界
-
-Executor 可以：
+Executor 提供资源，不决定计算边界，它可以：
 
 - 同时执行多个 Task，具体取决于可用核数及 Task 资源需求。
 - 先执行 Stage 0 的 Task，再执行 Stage 1 的 Task。
@@ -330,17 +352,13 @@ Executor 可以：
 
 所以，**Stage 是计算的划分，Executor 是运行计算的资源，两者不是一一对应关系**
 
+#### 4、步骤总结图
 
-
-总结： Spark 的优势通常来自多方面+
-
-1. **DAG 执行模型**，不局限于固定的 Map → Reduce 两阶段。
-2. **窄依赖可以流水线执行**，不必在每个算子之间落盘。
-3. **数据可以 Cache/Persist**，适合多次复用。
-4. **Lazy Evaluation**，可以先记录转换关系，遇到 Action 再执行。
-5. DataFrame/SQL 还能通过优化器优化执行计划。
+把前面的所有步骤看明白后，就很好理解下面的完整执行图啦！
 
 ```mermaid
+%%{init: {'themeVariables': {'fontSize': '20px', 'titleFontSize': '22px', 'nodeTextColor': '#1a1a1a'}, 'flowchart': {'nodeSpacing': 50, 'rankSpacing': 60}}}%%
+
 flowchart TB
 
     %% ============ Driver：触发与规划 ============
@@ -412,4 +430,10 @@ flowchart TB
     class RESULT result;
 ```
 
+总结： Spark 的优势通常来自多方面：
 
+1. **DAG 执行模型**，不局限于固定的 Map → Reduce 两阶段。
+2. **窄依赖可以流水线执行**，不必在每个算子之间落盘。
+3. **数据可以 Cache/Persist**，适合多次复用。
+4. **Lazy Evaluation**，可以先记录转换关系，遇到 Action 再执行。
+5. DataFrame/SQL 还能通过优化器优化执行计划。
