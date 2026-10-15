@@ -31,7 +31,7 @@ Executor 执行 `MapRedTask` 时，会通过 Hadoop API 提交一个Hadoop MapRe
 
 概述图的步骤和标题是一一对应的，所以可以结合后面的详细步骤来看
 
-![](assets/2026-10-15-13-50-02-image.png)
+![](C:/Users/v-liuyuhang/source/repos/MyPro/MyLearningNotes/content/posts/Hive/11HiveSQL底层执行过程/assets/fe8a4bb3f6369c86cc0f72cbafaaa7d4970cdb86.png)
 
 # 步骤1：客户端提交 SQL
 
