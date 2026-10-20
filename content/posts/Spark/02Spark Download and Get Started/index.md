@@ -15,9 +15,9 @@ description: "记录 Windows 下 Spark 的环境配置与 PySpark Shell 使用�
 
 ![Spark 下载页：选择 Spark 3.5.9 与 Hadoop 3 预构建包](./assets/2026-10-14-17-28-53-image.png)
 
-运行前还需确保
+## 1.1 前置环境
 
-1、已安装并配置 Python
+### 1、已安装并配置 Python
 
 如果没有安装 Python，需要先安装 **Python 3.8～3.11**并添加到环境变量中
 
@@ -43,7 +43,7 @@ Python 3.12.10
 
 在系统环境变量中新增Spark安装路径 `C:\Users\v-liuyuhang\source\spark3.5.9\bin`
 
-2、已安装 Java并设置 `JAVA_HOME`
+### 2、已安装 Java并设置 `JAVA_HOME`
 
 **64 位 JDK 8**，可以运行 **Apache Spark 3.5.9**，满足最低要求
 
@@ -72,6 +72,60 @@ set JAVA_HOME
 C:\Users\v-liuyuhang>set JAVA_HOME
 JAVA_HOME=C:\Program Files\Java\jdk1.8.0_503\
 ```
+
+### 3、Windows系统适配(Linux不需要)
+
+过程完全参考[Arjun650/Hadoop-3.3.4-Windows-Installation-Guide](https://github.com/Arjun650/Hadoop-3.3.4-Windows-Installation-Guide) 就可以，但是如果出现下载很慢的情况可以安装一个aria2工具，再用aria2多线程下载hadoop压缩包）
+
+```shell
+winget install aria2.aria2
+
+aria2c -x 16 -s 16 -k 1M https://repo.huaweicloud.com/apache/hadoop/common/hadoop-3.3.4/hadoop-3.3.4.tar.gz
+```
+
+下载的输出可以参考，这样操作之后几分钟就可以下载完成
+
+```shell
+C:\Users\v-liuyuhang\Downloads>aria2c -x 16 -s 16 -k 1M https://repo.huaweicloud.com/apache/hadoop/common/hadoop-3.3.4/hadoop-3.3.4.tar.gz
+
+10/19 16:39:46 [NOTICE] Downloading 1 item(s)
+[#e1da51 0B/0B CN:1 DL:0B]
+10/19 16:39:54 [NOTICE] Allocating disk space. Use --file-allocation=none to disable it. See --file-allocation option in man page for more details.
+ *** Download Progress Summary as of Mon Oct 19 16:40:46 2026 ***
+======================================================================================================================
+[#e1da51 81MiB/663MiB(12%) CN:16 DL:3.2MiB ETA:2m56s]
+FILE: C:/Users/v-liuyuhang/Downloads/hadoop-3.3.4.tar.gz
+----------------------------------------------------------------------------------------------------------------------
+
+ *** Download Progress Summary as of Mon Oct 19 16:41:47 2026 ***
+======================================================================================================================
+[#e1da51 300MiB/663MiB(45%) CN:16 DL:3.6MiB ETA:1m40s]
+FILE: C:/Users/v-liuyuhang/Downloads/hadoop-3.3.4.tar.gz
+----------------------------------------------------------------------------------------------------------------------
+
+ *** Download Progress Summary as of Mon Oct 19 16:42:47 2026 ***
+======================================================================================================================
+[#e1da51 520MiB/663MiB(78%) CN:16 DL:3.4MiB ETA:41s]
+FILE: C:/Users/v-liuyuhang/Downloads/hadoop-3.3.4.tar.gz
+----------------------------------------------------------------------------------------------------------------------
+
+[#e1da51 662MiB/663MiB(99%) CN:1 DL:28KiB ETA:13s]
+10/19 16:43:37 [NOTICE] Download complete: C:/Users/v-liuyuhang/Downloads/hadoop-3.3.4.tar.gz
+
+Download Results:
+gid   |stat|avg speed  |path/URI
+======+====+===========+=======================================================
+e1da51|OK  |   2.9MiB/s|C:/Users/v-liuyuhang/Downloads/hadoop-3.3.4.tar.gz
+
+Status Legend:
+(OK):download completed.
+
+C:\Users\v-liuyuhang\Downloads>
+```
+
+将下载的 ` C:/Users/v-liuyuhang/Downloads/hadoop-3.3.4.tar.gz`解压缩可以得到1.28G，后面跟着链接教程走就行。
+
+ps. 如果JAVA_HOME 路径里有的空格，如`JAVA_HOME=C:\Program Files\Java\jdk1.8.0_503\`，需要在所有使用此路径时替换成`C:\PROGRA~1\Java\jdk1.8.0_503`。因为 hdfs.cmd、hadoop-config.cmd 这类批处理脚本在拼接 `%JAVA_HOME%\bin\java` 时没有加引号。
 
 # 2、Spark中的Python shell
 
@@ -209,7 +263,7 @@ Spark shell和独立 Spark 程序这种划分方式，很容易联想到Hive的H
 
 - Hive JDBC 程序通常是“查询请求的发起者”，不包含计算
   
-  ```plain text
+  ```plain
   1. 建立与 HiveServer2 的连接。
   2. 将 SQL 文本提交给 HiveServer2（HiveServer2 及其执行链路负责“理解查询并组织计算）
   3. 等待执行引擎的查询执行。
@@ -240,8 +294,6 @@ Spark shell和独立 Spark 程序这种划分方式，很容易联想到Hive的H
 > - Scala 的 lambda、集合操作、模式匹配与 Spark API 更自然
 > 
 > - Java 更容易和传统 Java 工程、Spring 生态及现有公共库集成
-
-
 
 ### 前置检查
 
@@ -345,7 +397,7 @@ cd spark-line-count
 
 针对我当前的版本
 
-```plain text
+```plain
 Spark        3.5.9
 Scala        2.12.18
 Java         1.8.0_503
@@ -377,11 +429,9 @@ lazy val root = (project in file("."))
 - 打包 JAR 时不把完整 Spark 包塞进应用 JAR
 - 运行时由本机 Spark 或集群提供 Spark 依赖
 
-
-
 创建目录的时候已经创建了**sbt 版本配置文件** `spark-line-count\project\build.properties`，现在将其版本填入
 
-```plain text
+```plain
 sbt.version=1.9.9
 ```
 
@@ -454,14 +504,14 @@ sbt clean package
 
 编译成功会输出Compilation completed如下
 
-```plain text
+```plain
 [info]   Compilation completed in 21.912s.
 [success] Total time: 87 s (01:27), completed 2026-10-16 16:44:51
 ```
 
 同时会生成文件
 
-```plain text
+```plain
 target\scala-2.12\spark-line-count_2.12-1.0.0.jar
 ```
 
@@ -471,7 +521,7 @@ target\scala-2.12\spark-line-count_2.12-1.0.0.jar
 
 **启动已经打包好的 Spark 应用**（通常流程如下，所以必须先编译）
 
-```plain text
+```plain
 Scala 源码 → sbt 打包成 JAR → spark-submit 启动 → Spark 读取数据、执行计算
 ```
 
@@ -496,17 +546,17 @@ spark-submit `
 
 **Spark 的选项放在 JAR 前面，应用自己的参数放在 JAR 后面。**
 
-执行成功的话会看到
+执行成功的话会看到有输出如下
 
-```plain text
+```plain
 Input file: data/input.txt
 Total line count: 6
 Non-empty line count: 5
 ```
 
-### 总结
+### 过程总结
 
-```plain text
+```plain
 sbt package
     ↓
 生成应用 JAR
