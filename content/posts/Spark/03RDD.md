@@ -1,3 +1,12 @@
+---
+title: "Spark RDD：基础概念、创建方式与常用操作"
+date: 2026-10-21T21:50:09+08:00
+draft: false
+tags: ["Spark", "RDD", "Scala", "Transformation", "Action", "持久化"]
+categories: ["Spark"]
+description: "介绍 Spark RDD 的核心概念与创建方式，结合 Scala 示例讲解转化操作、行动操作、函数传递与闭包注意事项，以及 RDD 的持久化与缓存。"
+---
+
 # 1、RDD基础
 
 RDD 是一个**不可变的分布式对象集合**，是Spark中最底层的核心数据抽象。每个 RDD 都被分为多个分区，这些分区运行在集群中的不同节点上。
@@ -42,6 +51,7 @@ RDD 是一个**不可变的分布式对象集合**，是Spark中最底层的核�
     FROM Users
     WHERE DeptName = 'IT';
     ```
+
 - SQL 被发送到数据库执行，数据库只将统计结果返回给应用程序。因此，这里的查询逻辑定义在应用程序中，但主要的数据过滤和统计计算发生在数据库中。
 
 **此时的数据源是数据库，计算的过程定义在后端，计算的执行过程在数据库。**如果随着数据增长遇到查询慢，就有两个解决思路：
@@ -110,7 +120,7 @@ object SparkBasicsApp {
     val sc = spark.sparkContext
     sc.setLogLevel("WARN")
     try {
-        
+
         val rdd = sc.parallelize(Seq(1, 2, 3, 4, 5, 6), numSlices = 3)   // numSlices 指定分区数
         println("NumPartitions: " + rdd.getNumPartitions)  // 3
         println("NumDetails: " + rdd.glom().collect().map(_.toList).toList)     // [[1, 2], [3, 4], [5, 6]]，可看到每个分区的内容
@@ -177,11 +187,11 @@ object SparkBasicsApp {
     val sc = spark.sparkContext
     sc.setLogLevel("WARN")
     try {
-        
+
         // val rdd = sc.parallelize(Seq(1, 2, 3, 4, 5, 6), numSlices = 3)   // numSlices 指定分区数
         // println("NumPartitions: " + rdd.getNumPartitions)  // 3
         // println("NumDetails: " + rdd.glom().collect().map(_.toList).toList)     // [[1, 2], [3, 4], [5, 6]]，可看到每个分区的内容
-    
+
         val rdd_lines = sc.textFile("data/input.txt")
         val spark_rdd = rdd_lines.filter(line => line.contains("Spark"))
         spark_rdd.foreach(println)
@@ -194,7 +204,7 @@ object SparkBasicsApp {
 
 最后会输出
 
-```plain text
+```plain
 [info] Input had 3 lines containing 'Spark'. They are:
 [info] Spark
 [info] PySpark
@@ -204,7 +214,7 @@ object SparkBasicsApp {
 
 需要注意的是，每当我们调用一个新的行动操作时，整个 RDD 都会从头开始计算。要避免这种低效的行为，用户可以将中间结果持久化，这会在 6 节中介绍。
 
-## 发散思维——和.NET的LINQ联动（不感兴趣的可忽略）
+## 3.1 发散思维——和.NET的LINQ联动（不感兴趣的可忽略）
 
 我看到RDD的两种操作后，突然想到这个惰性求值的思想和.NET的LINQ很类似（都是把一些操作合并到一起来减少计算数据），所以列出来给感兴趣的同学看一下。
 
@@ -292,8 +302,6 @@ val itUsers = usersRDD.filter(
 
 - 容错：函数加上血缘（Lineage）构成了"计算食谱"。某个分区丢失后，Spark 只需拿原始数据重新应用这些函数，就能重算出该分区。为了保证 Task 重试和分区重算时结果一致，传给 Spark 的函数最好是确定性的，并尽量避免不可重复或非幂等的外部副作用。Spark 允许非确定性函数，但重算时可能产生不同结果。
 
-
-
 Spark 的大部分转化操作和一部分行动操作，都需要依赖用户传递的函数来计算。在我们支持的三种主要语言中，向 Spark 传递函数的方式略有区别。
 
 它是 Spark 编程模型的基础，因为 Spark 的大部分转化和行动操作都依赖用户传入的函数。
@@ -371,7 +379,7 @@ val result = usersRDD.filter(
 
 此时函数和捕获的外部状态组合成闭包：
 
-```plain text
+```plain
 闭包
 ├── 函数逻辑：user.deptName == targetDepartment
 └── 外部状态：targetDepartment = "IT"
@@ -389,7 +397,7 @@ val result = usersRDD.filter(
 class UserProcessor {
 
   val targetDepartment = "IT"
-  
+
   //UserProcessor实例的方法  
   def isTargetDepartment(user: User): Boolean = {
     user.deptName == targetDepartment
@@ -405,7 +413,7 @@ class UserProcessor {
 
 因此，把实例方法 `isTargetDepartment` 传给 filter 时，Executor 不仅需要知道要执行哪个方法，还可能需要知道该方法属于哪个 `UserProcessor` 实例。可以将这个引用关系理解为：
 
-```plain text
+```plain
 传递实例方法
     ↓
 方法依赖 this.targetDepartment
@@ -482,7 +490,7 @@ flatMappedResult
 
 输出如下
 
-```plain text
+```plain
 [info] [Hello, Spark]
 [info] [Hello, RDD]
 [info] Hello
@@ -500,7 +508,7 @@ flatMappedResult
 
 ### 5.1.2 伪集合的转化操作
 
-尽管 RDD 本身不是严格意义上的集合，但它也支持许多数学上的集合操作，比如合并和相交操作。（使用前提：RDD 是相同数据类型的）
+尽管 RDD 本身不是严格意义上的集合，但它也支持许多数学上的集合操作，比如合并和相交操作。（使用前提：RDD 内部是相同数据类型的）
 
 原始数据定义如下：
 
@@ -518,9 +526,9 @@ val right = sc.parallelize(Seq(3, 4, 5))
 | `subtract()`     | 移除一个 RDD 中同时存在于另一个 RDD 中的内容，例如移除训练数据（去重） | `rdd.subtract(other)`     | `{1, 2}`                                                                   |
 | `cartesian()`    | 与另一个 RDD 进行笛卡儿积                          | `rdd.cartesian(other)`    | `{(1, 3), (1, 4), (1, 5), (2, 3), (2, 4), (2, 5), (3, 3), (3, 4), (3, 5)}` |
 
-RDD 中最常缺失的集合属性是元素的唯一性，因为常常有重复的元素。如果只要唯一的元素，我们可以使用 `RDD.distinct()` 转化操作来生成一个只包含不同元素的新 RDD。不过需要注意，`distinct()`操作的开销很大，因为它需要将所有数据通过网络进行shuffle，以确保每个元素都只有一份。
+RDD 中最常缺失的集合属性是元素的唯一性，因为常常有重复的元素。如果只要唯一的元素，我们可以使用 `RDD.distinct()` 转化操作来生成一个只包含不同元素的新 RDD。不过需要注意，`distinct()`操作的开销很大，因为它需要将所有数据通过网络进行shuffle到同一台机器上，才能确保每个元素都只有一份。
 
-下面的完整代码详见配套git [RDDCollectionOperationsApp.scala](https://github.com/Eleanora-lyh/BigDataDemoProjects/blob/main/Spark/ScalaApplicaton/spark-line-count/src/main/scala/com/example/RDDCollectionOperationsApp.scala)
+下面Demo的完整代码详见配套git [RDDCollectionOperationsApp.scala](https://github.com/Eleanora-lyh/BigDataDemoProjects/blob/main/Spark/ScalaApplicaton/spark-line-count/src/main/scala/com/example/RDDCollectionOperationsApp.scala)
 
 #### 并集 union
 
@@ -534,7 +542,7 @@ left.union(right)
 
 输出
 
-```plain text
+```plain
 [info] left  = [1, 2, 3]
 [info] right = [3, 4, 5]
 [info] union: [1, 2, 3, 3, 4, 5]
@@ -603,9 +611,9 @@ right.subtract(left)
 val rdd = sc.parallelize(Seq(1, 2, 3, 3), numSlices = 2)
 ```
 
-本例的分区内容是：
+本例的数据分区的可视化如下：
 
-```plain text
+```plain
 RDD
 ├── 分区 0：[1, 2]
 └── 分区 1：[3, 3]
@@ -631,11 +639,13 @@ RDD
 |              | `foreach(func)`                       | 对 RDD 中每个元素执行指定函数                               | `rdd.foreach(func)`            | 无返回结果                   |
 |              | `foreachPartition(func)`              | 对 RDD 的每个 Partition 执行一次函数                      | `rdd.foreachPartition(func)`   | 无返回结果                   |
 
-下面的完整代码详见配套 Git 代码 [RDDActionOperationsApp.scala](https://github.com/Eleanora-lyh/BigDataDemoProjects/blob/main/Spark/ScalaApplicaton/spark-line-count/src/main/scala/com/example/RDDActionOperationsApp.scala)
+下面的完整Demo代码详见配套 Git 代码 [RDDActionOperationsApp.scala](https://github.com/Eleanora-lyh/BigDataDemoProjects/blob/main/Spark/ScalaApplicaton/spark-line-count/src/main/scala/com/example/RDDActionOperationsApp.scala)
 
 #### 取数与计数
 
-1、 `collect()`：取回全部元素（重复元素会保留）
+##### 1、collect()
+
+ 取回全部元素（重复元素会保留）
 
 **全部数据都要进入 Driver 内存，因此只适合小数据。**
 
@@ -647,16 +657,19 @@ rdd.collect().toSeq
 
 执行过程可以理解为：
 
-```plain text
+```plain
 分区 0：[1, 2] ──┐
                 ├── Driver：[1, 2, 3, 3]
 分区 1：[3, 3] ──┘
 ```
 
 - `collect()` 返回 `Array[Int]`。
-- `.toSeq` 是 Driver 上的 Scala 集合转换，不是 Spark 操作。
 
-2、 `count()`：统计元素总数
+---
+
+##### 2、count()
+
+统计元素总数
 
 统计的是元素数量，不是不同值的数量。
 
@@ -666,7 +679,11 @@ rdd.count()
 // [info] count: 4
 ```
 
-3、 `first()`：取第一个非空元素
+---
+
+##### 3、first()
+
+取第一个非空元素
 
 空 RDD 调用 `first()` 会报错
 
@@ -676,7 +693,11 @@ rdd.first()
 // [info] first: 1
 ```
 
-4、 `take(n)`：按顺序取前 n 个元素
+---
+
+##### 4、take(n)
+
+按顺序取前 n 个元素
 
 如果请求的数量超过实际数量，则返回全部已有元素，不会补齐。
 
@@ -690,9 +711,9 @@ rdd.take(2).toSeq
 
 #### 大小比较
 
-1、 `takeOrdered()`：按照元素的排序规则，选出最小的n个，并按升序返回
+##### 1、takeOrdered()
 
-
+按照元素的排序规则，选出最小的n个，并按升序返回
 
 ```scala
 rdd.takeOrdered(3).toSeq
@@ -700,7 +721,11 @@ rdd.takeOrdered(3).toSeq
 // [info] takeOrdered(3): WrappedArray(1, 2, 3)
 ```
 
-2、 `top(n)`：取最大的前n个元素
+---
+
+##### 2、top(n)
+
+取最大的前n个元素
 
 **`top` 不去重，原始 RDD 中有两个 `3`，它们就是最大的两个元素。**
 
@@ -710,7 +735,11 @@ rdd.top(2).toSeq
 // [info] top(2): WrappedArray(3, 3)
 ```
 
-3. `min()` 和 `max()`：取最大/最小
+---
+
+##### 3、min() 和 max()
+
+取最大/最小
 
 只需要一个极值时，可以直接使用它们。空 RDD 调用这两个操作会报错。
 
@@ -724,7 +753,9 @@ rdd.max()
 
 #### 聚合统计
 
-1. `reduce()`：使用同一个函数不断合并
+##### 1、reduce()
+
+使用同一个函数不断合并
 
 `_ + _` 是`(left, right) => left + right`的缩写
 
@@ -736,7 +767,7 @@ rdd.reduce(_ + _) //等价于 rdd.reduce((left, right) => left + right)
 
 按本例分区，可以理解为：
 
-```plain text
+```plain
 分区 0：[1, 2] → 1 + 2 = 3
 分区 1：[3, 3] → 3 + 3 = 6
 最终合并：3 + 6 = 9
@@ -753,7 +784,9 @@ rdd.reduce(_ + _) //等价于 rdd.reduce((left, right) => left + right)
 
 ---
 
-2、 `fold()`：使用同一个函数不断合并（带单位元的合并）
+##### 2、fold()
+
+使用同一个函数不断合并（带单位元的合并）
 
 ```scala
 rdd.fold(0)(_ + _)
@@ -763,15 +796,13 @@ rdd.fold(0)(_ + _)
 
 它比 `reduce` 多了一个初始值 `0`，同一个函数不断合并各个分区时会加上单位元0
 
-```plain text
+```plain
 分区 0：0 + 1 + 2 = 3
 分区 1：0 + 3 + 3 = 6
 最终合并：0 + 3 + 6 = 9
 ```
 
-**这个初始值不是只加一次！**
-
-因此应选择不会改变结果的“单位元”：
+**这个初始值不是只加一次！** 因此应选择不会改变结果的“单位元”：
 
 | 运算  | 合适的单位元 |
 | --- | ------ |
@@ -786,46 +817,61 @@ rdd.fold(0)(_ + _)
 
 ---
 
-3、`aggregate()`：分区内累加 与 分区间合并 分开定义
+##### 3、aggregate()
+
+分区内累加 与 分区间合并 分开定义（一个 Action，两种函数，一个初始值）
+
+aggregate() 是比 fold() 更通用的聚合操作。最大的能力是：RDD 元素类型可以是 T，但最终聚合结果可以是另一种类型 U。
+
+```scala
+def aggregate[U](zeroValue: U)(
+  seqOp: (U, T) => U,
+  combOp: (U, U) => U
+)(implicit arg0: ClassTag[U]): U
+```
+
+参数含义如下
+
+| 参数          | 类型            | 执行位置                   | 干什么                          |
+| ----------- | ------------- | ---------------------- | ---------------------------- |
+| `zeroValue` | `U`           | —                      | 每个分区的**累加器初始值**​             |
+| `seqOp`     | `(U, T) => U` | **Executor 内，每个分区串行**​ | 把分区里的元素一个个"喂"进去，应用函数`seqOp`  |
+| `combOp`    | `(U, U) => U` | **Driver 端，跨分区合并**​    | 把所有分区的结果再聚合成一个，聚合函数为`combOp` |
 
 ```scala
 val sumAndCount = rdd.aggregate((0, 0L))(
-  (acc, value) => (acc._1 + value, acc._2 + 1L),
-  (left, right) => (left._1 + right._1, left._2 + right._2)
+  (acc, value) => (acc._1 + value, acc._2 + 1L), // 统计总和
+  (left, right) => (left._1 + right._1, left._2 + right._2) //统计个数
 )
+println(sumAndCount._1.toDouble / sumAndCount._2)
 // [info] RDD = [1, 2, 3, 3], partitions = 2
 //[info] aggregate(sum, count): (9,4)
+//[info] average from aggregate: 2.25
 ```
 
-这个操作的目标是同时统计：
-
-(总和, 个数)
-
-分三部分看。
+这个操作的目标是同时统计：(总和, 个数)
 
 ① 初始值 `(0, 0L)` 表示：总和 = 0、个数 = 0
 
-② 分区内累加函数 `(acc, value) => (acc._1 + value, acc._2 + 1L)`表示：
+② 分区内累加函数 `(acc, value) => (acc._1 + value, acc._2 + 1L)`表示：每读到一个元素则总和加上该元素、个数加一
 
-每读到一个元素：总和加上该元素、个数加一
-
-```plain text
+```plain
 分区 0 的计算：
 初始：(0, 0)
-读到 1 → (1, 1)
-读到 2 → (3, 2)
+读到 1 → (总和=1, 个数=1) 
+读到 2 → (总和=3, 个数=2)
 
 分区 1 的计算：
 初始：(0, 0)
-读到 3 → (3, 1)
-读到 3 → (6, 2)
+读到 3 → (总和=3, 个数=1)
+读到 3 → (总和=6, 个数=2)
 ```
 
-③ 分区间合并函数 `(left, right) => (left._1 + right._1, left._2 + right._2)`
+③ 分区间合并函数 `(left, right) => (left._1 + right._1, left._2 + right._2)` 将两个统计结果合并：`(3, 2) + (6, 2) → (9, 4)`
 
-将两个统计结果合并：`(3, 2) + (6, 2) → (9, 4)`
+需要注意的是这里的`left` 指的是`(acc1, value1)`，`right` 指的是`(acc2, value2)`，所以`left._1 + right._1`计算的是`acc1+acc2`；`left._2 + right._2`计算的是`value1+value2`
 
-随后在 Driver 上计算平均值：`sumAndCount._1.toDouble / sumAndCount._2`（9.0 / 4 = 2.25，这里 `.toDouble` 是为了避免整数除法）
+随后在 Driver 上就可以计算平均值：`sumAndCount._1.toDouble / sumAndCount._2`（9.0 / 4 = 2.25，这里 `.toDouble` 是为了避免整数除法，这段平均值计算不是新的 Spark Action，只是在 Driver 上处理已经返回的元组。）
 
 **`aggregate` 的关键优势是：累加结果的类型可以与原始元素类型不同。**
 
@@ -833,33 +879,30 @@ val sumAndCount = rdd.aggregate((0, 0L))(
 
 累加结果：(Int, Long)
 
-这段平均值计算不是新的 Spark Action，只是在 Driver 上处理已经返回的元组。
+---
 
-### 4. `countByValue`：统计每个值出现的次数
+##### 4、countByValue()
 
+统计每个值出现的次数
+
+```scala
 rdd.countByValue().toMap
+// [info] RDD = [1, 2, 3, 3], partitions = 2
+// [info] countByValue: Map(2 -> 1, 1 -> 1, 3 -> 2)
+```
 
-// Map(1 -> 1L, 2 -> 1L, 3 -> 2L)
+含义：1 出现 1 次；2 出现 1 次；3 出现 2 次
 
-含义：
-
-1 出现 1 次
-
-2 出现 1 次
-
-3 出现 2 次
-
-它与 `count()` 的区别：
-
+```plain
 count()        → 总共有多少个元素：4
-
 countByValue() → 每个值分别有多少个：{1:1, 2:1, 3:2}
+```
 
 结果是 Driver 端的 Map，**Map 的打印顺序没有保证**。代码比较的是键值内容，不是显示顺序。
 
 如果不同值特别多，这个 Map 也可能占用大量 Driver 内存。
 
-### 三种合并操作怎么选
+**三种合并操作怎么选**
 
 | 操作          | 初始值     | 结果类型能否不同于元素类型 | 典型用途              |
 | ----------- | ------- | ------------- | ----------------- |
@@ -871,141 +914,158 @@ countByValue() → 每个值分别有多少个：{1:1, 2:1, 3:2}
 
 #### 抽样与遍历
 
-### 1. `takeSample`：随机抽取若干元素
+##### 1、takeSample()
 
-val sample = rdd.takeSample(
+随机抽取若干元素
 
-  withReplacement = false,
-
-  num = 3,
-
-  seed = 42L
-
+```scala
+val sample = rdd.takeSample(
+  withReplacement = false,
+  num = 3,
+  seed = 42L
 ).toSeq
+// [info] RDD = [1, 2, 3, 3], partitions = 2
+// [info] takeSample(false, 3, 42): [2, 3, 3]
+```
 
-参数含义：
+| 参数                        | 含义                   |
+| ------------------------- | -------------------- |
+| `withReplacement = false` | 无放回抽样                |
+| `num = 3`                 | 希望抽取 3 个元素           |
+| `seed = 42L`              | 指定随机种子为42，便于在相同条件下复现 |
 
-| 参数                        | 含义                |
-| ------------------------- | ----------------- |
-| `withReplacement = false` | 无放回抽样             |
-| `num = 3`                 | 希望抽取 3 个元素        |
-| `seed = 42L`              | 指定随机种子，便于在相同条件下复现 |
+区分`sample`和`takeSample`：
 
-之前运行得到的是：
+- sample：按比例筛，给集群继续算；
 
-[2, 3, 3]
+- takeSample：按条数取，给 Driver 做分析。
 
-**无放回抽样为什么还能出现两个 `3`？**
+```scala
+// sample：三个参数
+def sample(withReplacement: Boolean, fraction: Double, seed: Long = 0L): RDD[T]
 
-因为无放回针对的是“元素实例”，不是“值”。
+// takeSample：三个参数，但第二个是数量
+def takeSample(withReplacement: Boolean, num: Int, seed: Long = 0L): Array[T]
+```
 
-可以给原始元素加上标签来理解：
+|            | sample                 | takeSample                                      |
+| ---------- | ---------------------- | ----------------------------------------------- |
+| 类型         | **Transformation**（惰性） | **Action**（立即触发）                                |
+| 返回         | `RDD[T]`               | `Array[T]`                                      |
+| 抽样依据       | **比例**​ `fraction`     | **数量**​ `num`                                   |
+| 是否 shuffle | 否，是 Bernoulli 伯努利抽样    | 是，走 `RandomSampler` + shuffle                   |
+| 能否确定条数     | 不能，结果非确定               | 能，精确返回 num 条（withReplacement=false 且 num ≤ 总量时） |
+| 数据去向       | 仍在集群                   | 拉回 Driver                                       |
 
-[1, 2, 3ₐ, 3ᵦ]
+使用场景：
 
-抽到：
+```scala
+// 场景1：想要"大概 10% 的数据继续做计算"
+val subset = rdd.sample(false, 0.1).map(_ * 2).filter(_ > 5)
+// sample 是对的，因为返回 RDD 可以接后续算子
 
-[2, 3ₐ, 3ᵦ]
+// 场景2：想要"精确 1000 条做本地分析 / 画图 / 抽样检验"
+val arr = rdd.takeSample(false, 1000)
+arr.foreach(println)
+// takeSample 是对的，因为要的是数组，且条数精确
 
-没有重复抽取同一个元素，但两个元素的值恰好相同。
+// 场景3：数据倾斜，想看某个 key 的样本分布
+rdd.filter(_ == 3).takeSample(false, 10)
+// 结果 Array(3, 3) —— 总量只有 2 条，num=10 但只能返回 2 条
+```
 
-代码没有断言样本必须等于 `[2, 3, 3]`，而是验证：
+---
 
-1. 样本数量为 3。
-2. 每个值的出现次数不超过原始数据中的次数。
+##### 2、foreach()
 
-例如，样本中不能出现三个 `3`，因为原始 RDD 只有两个。
+每个元素执行一次函数
 
-还要区分：
+```scala
+ rdd.foreach(value => println(s"  element = $value"))
+// [info] RDD = [1, 2, 3, 3], partitions = 2
+```
 
-takeSample → Action，返回 Driver 上的数组
+输出（两个分区可以并行执行，**跨分区的打印顺序不保证**）
 
-sample     → Transformation，返回一个新的 RDD
+```plain
+[info] foreach (Executor output, order may vary):
+[info]   element = 3
+[info]   element = 3
+[info]   element = 1
+[info]   element = 2
+```
 
-### 2. `foreach`：每个元素执行一次函数
+原因是：这里的函数在 Executor 执行：
 
-rdd.foreach(value => println(s"  element = $value"))
-
-本例会打印所有元素，但可能是：
-
-3
-
-3
-
-1
-
-2
-
-而不是固定的：
-
-1
-
-2
-
-3
-
-3
-
-原因是两个分区可以并行执行，**跨分区的打印顺序不保证**。
-
-这里的函数在 Executor 执行：
-
+```plain
 Driver 发起 Action
-
     ├── Executor 处理分区 0，逐个打印
-
     └── Executor 处理分区 1，逐个打印
+```
 
-在本地模式中，你能在当前控制台看到这些输出；在集群中，它们通常出现在 Executor 日志中。
+在本地模式中的控制台看到这些输出；在集群中，它们通常出现在 Executor 日志中。
 
 `foreach` 返回 `Unit`，不是把处理后的元素收集回 Driver。
 
-### 3. `foreachPartition`：每个分区执行一次函数
+---
 
-rdd.foreachPartition { values =>
+##### 3、foreachPartition()
 
-  println(s"  partition = ${values.mkString("[", ", ", "]")}")
+每个分区执行一次函数
 
+```scala
+rdd.foreachPartition { values =>
+        println(s"  partition = ${values.mkString("[", ", ", "]")}")
 }
+```
 
-这里的 `values` 是当前分区的迭代器，输出类似：
+这里的 `values` 是当前分区的迭代器，输出：
 
-partition = [3, 3]
-
-partition = [1, 2]
+```plain
+[info] foreachPartition (Executor output, order may vary):
+[info]   partition = [1, 2]
+[info]   partition = [3, 3]
+```
 
 两者的区别是：
 
-foreach          → 函数逐元素调用
+- `foreach`：函数逐元素（四个元素）调用。
+- `foreachPartition`：函数逐分区（两个分区）调用，内部自行遍历元素。
 
-foreachPartition → 函数逐分区调用，内部自行遍历元素
+应用：`foreachPartition` 常用于复用数据库连接等资源：
 
-在本例正常单次执行中：
-
-- `foreach`：处理四个元素。
-- `foreachPartition`：处理两个分区。
-
-`foreachPartition` 常用于复用数据库连接等资源：
-
+```plain
 逐元素建立连接：
-
 每条数据 → 建连接 → 写入 → 关闭
 
 逐分区复用连接：
-
 每个分区 → 建连接 → 写入多条数据 → 关闭
+```
 
 但要注意：**Spark 任务可能重试，外部写入不能想当然地认为只执行一次，需要考虑幂等性。**
 
-### 4. `rdd.foreach` 与 `rdd.collect().foreach`
+---
 
-代码最后专门进行了对比：
+##### 4、rdd.foreach 与 rdd.collect().foreach
 
+逐个遍历元素
+
+```scala
 rdd.foreach(value => println(value))
-
-与：
-
 rdd.collect().foreach(value => println(value))
+```
+
+这两种方式搭配`println`都可以达到逐个元素输出的效果
+
+```plain
+[info] collect().foreach (Driver output):
+[info]   element = 1
+[info]   element = 2
+[info]   element = 3
+[info]   element = 3
+```
+
+但在实现上有区别：
 
 | 写法                           | 遍历位置     | 是否把全部数据拉到 Driver |
 | ---------------------------- | -------- | ---------------- |
@@ -1019,19 +1079,6 @@ rdd.collect().foreach(value => println(value))
 ② foreach()：普通 Scala 数组遍历，在 Driver 逐个打印
 
 所以，**第二种写法中的 `foreach` 已经不是 RDD 行动操作了。**
-
-`reduce()`是基本 RDD 上最常见的行动操作 。它接收一个函数作为参数，这个函数要操作两个 RDD 的元素类型的数据并返回一个同样类型的新元素。
-
-```scala
-val rdd = sc.parallelize(Seq(1, 2, 3, 4), 2)
-
-val result = rdd.reduce((x, y) => x + y) // 1 + 2 + 3 + 4 = 10
-
-println(result) // 10
-```
-
-- **`reduce()`**：直接把 RDD 中的元素两两合并，**没有初始值**。
-- **`fold()`**：在 `reduce()` 的基础上增加一个 **零值 `zeroValue`**，但这个零值可能会被每个分区以及 Driver 端分别使用，并不是只使用一次。
 
 ## 5.2 在不同RDD类型之间转换
 
