@@ -1,5 +1,5 @@
 ---
-title: "Spark RDD：基础概念、创建方式与常用操作"
+title: "【三】Spark RDD：基础概念、创建方式与常用操作"
 date: 2026-10-21T21:50:09+08:00
 draft: false
 tags: ["Spark", "RDD", "Scala", "Transformation", "Action", "持久化"]
@@ -28,11 +28,11 @@ RDD 是一个**不可变的分布式对象集合**，是Spark中最底层的核�
 这里以.NET为例，假设业务上的需求是统计IT部门的人数，那么代码上的实现思路就是
 
 - 创建数据连接从数据库取数据（常用的实现框架：**EF Core**）
-  
+
   - 执行ORM映射：数据库表 → 实体类，表的列 → 类的属性，表中的一行数据 → 一个对象，最终获取到用户表users
-  
+
   - 通过EFCore的LINQ语句编写统计语句，下面是两种写法res1 和 res2 
-  
+
   - ```dotnet
     var users = dbContext.Users;
     var res1 = users.Count(x => x.DeptName == "IT");
@@ -45,7 +45,7 @@ RDD 是一个**不可变的分布式对象集合**，是Spark中最底层的核�
     ```
 
 - 在这段代码中，`dbContext.Users` 通常是一个 `IQueryable<User>`，还没有真正读取数据库，当执行 Count() 时，EF Core 才会解析 LINQ 表达式，并尝试将它翻译为 SQL
-  
+
   - ```sql
     SELECT COUNT(*)
     FROM Users
