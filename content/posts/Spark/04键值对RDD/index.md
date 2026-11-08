@@ -2,14 +2,14 @@
 title: "【四】Spark 键值对 RDD：创建、常用操作与数据分区"
 date: 2026-11-04T18:28:26+08:00
 draft: false
-tags: ["Spark", "RDD", "Pair RDD", "Scala", "Shuffle", "Partitioner"]
+tags: ["Spark", "Pair RDD", "Scala", "Shuffle", "Partitioner"]
 categories: ["Spark"]
 description: "介绍 Spark 键值对 RDD 的创建方式、聚合、分组、连接、排序与行动操作，并结合 PageRank 示例讲解数据分区、分区器复用与自定义分区方式。"
 ---
 
 # 1、引入
 
-上一篇文章我们操作的都是普通类型的RDD，但按**元素类型**RDD可以分的两大类：
+上一篇文章我们操作的都是普通类型的RDD，但按**元素类型**RDD可以分成两大类：
 
 - 普通类型的RDD：`RDD[T]`，T 是任意类型。（可以是String、Int、User等）
 
@@ -35,13 +35,11 @@ RDD[(K, V)]  --隐式转换-->  PairRDDFunctions[K, V]
 
 如果你对一个 `RDD[Int]` 调用 `reduceByKey`，编译器会报错——因为它找不到对应的隐式转换。**这就是 Spark 用类型系统在编译期拦住错误，而不是运行时报错。**
 
+---
+
 **配套示例索引**
 
-文件名与入口对象名保持一致，按文章章节使用 `PairRDD_章节编号主题OperationsApp` 命名，小节编号用下划线连接（例如 3.1 对应 `_3_1`）；PageRank 算法案例使用 `PairRDD_5PageRankApp`。所有示例都包含结果校验，在 `spark-line-count` 项目目录运行，例如：
-
-```shell
-sbt "runMain com.example.PairRDD_3_1AggregationOperationsApp"
-```
+下面所有小节的实例代码均可以在Git上直接下载并运行，详见下表
 
 | 文章位置              | 配套文件                                                                                                                                                                                                                   | 练习内容                                                          |
 | ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------- |
@@ -55,11 +53,21 @@ sbt "runMain com.example.PairRDD_3_1AggregationOperationsApp"
 | 5.1～5.3、5.5 数据分区  | [PairRDD_5PartitioningOperationsApp.scala](https://github.com/Eleanora-lyh/BigDataDemoProjects/blob/main/Spark/ScalaApplicaton/spark-line-count/src/main/scala/com/example/PairRDD_5PartitioningOperationsApp.scala)   | 分区器属性、分区信息保留、用户事件连接、`groupWith`、自定义分区器                        |
 | 5.4 PageRank      | [PairRDD_5PageRankApp.scala](https://github.com/Eleanora-lyh/BigDataDemoProjects/blob/main/Spark/ScalaApplicaton/spark-line-count/src/main/scala/com/example/PairRDD_5PageRankApp.scala)                               | 图数据读写、十轮迭代、缓存与分区复用、逐轮校验                                       |
 
+所有示例都包含结果校验，运行需要先在Terminal中进入 `spark-line-count` 项目目录，再执行对应命令：
+
+```shell
+sbt "runMain com.example.PairRDD_3_1AggregationOperationsApp"
+```
+
 # 2、创建Pair RDD
 
 综上在 Spark 中，**Pair RDD 并不是一种独立的 RDD 类型**，它本质上是元素为二元组 `(Key, Value)` 的普通 RDD。
 
-所以构造Pair RDD也就是通过各种方式来构造出形式为`(Key, Value)` 的 RDD。
+所以构造Pair RDD也就是通过各种方式来构造出形式为`(Key, Value)` 的 RDD，这里列举了两种：
+
+- (Key, Value)集合并行化，进而变为Pair RDD
+
+- 普通 RDD通过转换，变为(Key, Value)格式的Pair RDD
 
 下面的代码详见 [PairRDD_2CreationOperationsApp.scala](https://github.com/Eleanora-lyh/BigDataDemoProjects/blob/main/Spark/ScalaApplicaton/spark-line-count/src/main/scala/com/example/PairRDD_2CreationOperationsApp.scala)
 
@@ -75,6 +83,7 @@ val pairs: RDD[(String, Int)] = sc.parallelize(
   Seq(("apple", 2), ("banana", 3), ("apple", 1)),
   numSlices = 2
 )
+// 输出
 val pairResult = pairs.collect().sorted.toSeq
 println(s"parallelize tuples: ${pairResult.mkString("[", ", ", "]")}")
 //[info] parallelize tuples: [(apple,1), (apple,2), (banana,3)]
@@ -96,13 +105,17 @@ alice,95
 
 ```scala
 val linesRDD = sc.textFile("data/name_score.txt") // 配套项目已提供该文件
+// 对linesRDD应用自定义的map函数，拆分后分别得到name和score，这里lambda表达式的写法把return省略掉了
 val scorePairRDD = linesRDD.map { line =>
+  //读进来的line是 RDD[String]，每一行是一条记录
   val fields = line.split(",")
   val name = fields(0)
   val score = fields(1).toInt
 
   (name, score)
 }
+// 将输出的scorePairRDD按照Key聚合，返回value的加和
+// _ + _ 等价于 (x, y) => x + y（ _ 是匿名占位符）
 val totalScores = scorePairRDD.reduceByKey(_ + _)
 ```
 
@@ -115,7 +128,7 @@ val totalScores = scorePairRDD.reduceByKey(_ + _)
 
 ## 2.2 普通 RDD —> Pair RDD
 
-这里分为两种构造形式，分别使用转换操作`map()`和`keyBy()`，先举例子看下分别怎么使用
+这里列了两种构造形式，分别使用转换操作`map()`和`keyBy()`，先举例子看下分别怎么使用
 
 ### map()
 
@@ -124,7 +137,9 @@ val totalScores = scorePairRDD.reduceByKey(_ + _)
 ```scala
 // word -> 1 与 (word, 1) 等价，常用于词频统计的准备阶段。
 val words = sc.parallelize(Seq("spark", "scala", "spark"), numSlices = 2)
+// map函数会应用到words的没一条记录，并返回以word为key，1为value的 键值对
 val wordPairs: RDD[(String, Int)] = words.map(word => (word, 1))
+
 val wordPairResult = wordPairs.collect().sorted.toSeq
 println(s"map to pairs: ${wordPairResult.mkString("[", ", ", "]")}")
 //[info] map to pairs: [(scala,1), (spark,1), (spark,1)]
@@ -148,11 +163,12 @@ Driver
   |-- println --> 输出
 ```
 
-通常用来统计文字出现的次数（有简写方式）
+这种写法通常用来统计文字出现的次数（有简写方式）
 
 ```scala
 val words = sc.parallelize(Seq("spark", "scala", "spark"), numSlices = 2)
 val wordPairs = words.map(word => (word, 1))
+// 相同的key则返回加和
 val wordCounts = wordPairs.reduceByKey((a, b) => a + b)
 // 可以简写为
 val wordCounts2 = words
@@ -160,7 +176,7 @@ val wordCounts2 = words
         .reduceByKey(_ + _)
 ```
 
-当需要按分区批量初始化资源或处理数据时，也可以用`mapPartitions`返回键值对：
+当需要**按分区批量初始化资源或处理数据**时，也可以用`mapPartitions`返回键值对（语义层面和`map`是等价的）：
 
 ```scala
 val pairRDD = words.mapPartitions { iterator =>
@@ -168,21 +184,40 @@ val pairRDD = words.mapPartitions { iterator =>
 }
 ```
 
+> 挖坑：`Map`案例的输入是`Seq("spark", "scala", "spark")`，那么如果输入变为`Seq("spark test1", "scala test2", "spark test1")`由该怎么统计每个单词出现的次数？
+> 
+> ——使用`flatMap(line => line.split("\\s+"))`先把string按照空格拆分（分词），具体详见 3.5的flatMap() 与 flatMapValues() 的区别
+> 
+> ```scala
+> val wordCounts = words
+>   .flatMap(line => line.split("\\s+"))
+>   .map(word => (word, 1))
+>   .reduceByKey(_ + _)
+> ```
+
 ### keyBy()
 
-使用创建 Pair RDD
+如果已经有一个普通 RDD，并且想从对象中选取某个属性作为 Key，则可以使用 keyBy()将其变成 PairRDD。
 
-如果已经有一个对象 RDD，并且想从对象中选取某个属性作为 Key，可以使用 keyBy()。
+```scala
+def keyBy[K](f: T => K): RDD[(K, T)]
+```
+
+对 RDD 中的 每一个元素 `T`用函数 `f` 计算出一个 key `K`，最终返回 `(K, T)`（原来的元素整体变成 value）
 
 ```scala
 val words = sc.parallelize(Seq("spark", "scala", "spark"), numSlices = 2)
+// keyBy将每一个输入作为参数，返回输入单词的长度
 val wordsByLength: RDD[(Int, String)] = words.keyBy(word => word.length)
+
 val keyedResult = wordsByLength.collect().sorted.toSeq
 println(s"keyBy length: ${keyedResult.mkString("[", ", ", "]")}")
 // keyBy length: [(5,scala), (5,spark), (5,spark)]
 ```
 
 ### 区别
+
+`keyBy` 和`map(x => (key, x))`是完全等价的，可以理解`keyBy`是特殊的一种`map`，其本质是语法糖
 
 | 操作                 | Key | Value      |
 | ------------------ | --- | ---------- |
@@ -205,9 +240,9 @@ rdd.keyBy(x => 自定义Key)
 
 # 3、Pair RDD的转化操作
 
-**转化操作**返回新的 RDD，计算结果由后续的 Action 触发。Pair RDD 也支持普通 RDD 的转化操作：例如 `map()`、`filter()` 接收的是整个 `(Key, Value)`；`mapValues()`、`flatMapValues()` 则只处理 Value，保留原 Key。
+**转化操作**返回新的 RDD，计算结果由后续的 Action 触发。
 
-原始数据统一定义如下，便于对照各个算子的输入和输出：
+**总表的统一输入（输入只用于总表）如下**。每一行示例都独立操作原始 `rdd`，不是接着上一行的结果继续计算；连接、联合分组和按 Key 排除还会使用 `other`。
 
 ```scala
 import org.apache.spark.HashPartitioner
@@ -215,48 +250,48 @@ import org.apache.spark.HashPartitioner
 val rdd = sc.parallelize(Seq((1, 2), (3, 4), (3, 6)), numSlices = 2)
 val other = sc.parallelize(Seq((3, 9)), numSlices = 2)
 
-// 聚合示例使用 (sum, count) 作为中间结果。
+// aggregateByKey / combineByKey 使用 (sum, count) 作为聚合器。
 val createCombiner = (value: Int) => (value, 1)
 val seqOp = (acc: (Int, Int), value: Int) => (acc._1 + value, acc._2 + 1)
 val combOp = (left: (Int, Int), right: (Int, Int)) =>
   (left._1 + right._1, left._2 + right._2)
 ```
 
-**对上述 Pair RDD 进行转化操作（按照分类如下）**。表格汇总下面 3.1～3.5 的练习，涵盖聚合、分组、连接、排序，以及 Value 映射与键值提取。
+即 `rdd` 包含三条记录 `[(1, 2), (3, 4), (3, 6)]`，`other` 包含一条记录 `[(3, 9)]`，两者类型均为 `RDD[(Int, Int)]`。Key 为 3 的两条记录不会自动合并。表中按 Key 的聚合器结果为 `(sum, count)`，例如 Key 为 3 时得到 `(10, 2)`。
 
-| 分类                   | 函数                                                         | 作用                                            | 示例                                                               | 结果 / 特点                                                                    |
-| -------------------- | ---------------------------------------------------------- | --------------------------------------------- | ---------------------------------------------------------------- | -------------------------------------------------------------------------- |
-| **1. 按 Key 聚合**      | `reduceByKey(func)`                                        | 对相同 Key 的 Value 使用同一个函数聚合，无初始值                | `rdd.reduceByKey(_ + _)`                                         | `{(1, 2), (3, 10)}`                                                        |
-|                      | `foldByKey(zeroValue)(func)`                               | 提供与 Value 同类型的零值，对每个 Key 聚合                   | `rdd.foldByKey(0)(_ + _)`                                        | `{(1, 2), (3, 10)}`；零值应为合并函数的单位元                                           |
-|                      | `aggregateByKey(zeroValue)(seqOp, combOp)`                 | 提供初始聚合值，分别定义分区内累加和分区间合并；聚合结果类型可以不同于 Value     | `rdd.aggregateByKey((0, 0))(seqOp, combOp)`                      | `{(1, (2, 1)), (3, (10, 2))}`，Value 为 `(sum, count)`                       |
-|                      | `combineByKey(createCombiner, mergeValue, mergeCombiners)` | 从每个分区中某 Key 的首个 Value 创建聚合器，再累加和合并；也有指定分区器的重载 | `rdd.combineByKey[(Int, Int)](createCombiner, seqOp, combOp)`    | `{(1, (2, 1)), (3, (10, 2))}`；可用 `mapValues` 进一步计算均值                       |
-| **2. 按 Key 分组**      | `groupByKey()`                                             | 将同一 Key 的所有 Value 收集为 `Iterable`，不聚合、不去重      | `rdd.groupByKey()`                                               | `{(1, [2]), (3, [4, 6])}`；组内顺序无保证                                          |
-|                      | `cogroup(other)`                                           | 按 Key 对齐多个 RDD，各来源保留独立的 Value 集合              | `rdd.cogroup(other)`                                             | `{(1, ([2], [])), (3, ([4, 6], [9]))}`；保留双方 Key 的并集，也支持三个 RDD              |
-| **3. 连接与按 Key 排除**   | `join(other)`                                              | 内连接，仅保留双方都有的 Key，组合两侧 Value                   | `rdd.join(other)`                                                | `{(3, (4, 9)), (3, (6, 9))}`                                               |
-|                      | `leftOuterJoin(other)`                                     | 左外连接，保留左侧 `rdd` 的全部记录，右侧缺失用 `None` 表示         | `rdd.leftOuterJoin(other)`                                       | `{(1, (2, None)), (3, (4, Some(9))), (3, (6, Some(9)))}`                   |
-|                      | `rightOuterJoin(other)`                                    | 右外连接，保留右侧 `other` 的全部记录，左侧缺失用 `None` 表示       | `rdd.rightOuterJoin(other)`                                      | `{(3, (Some(4), 9)), (3, (Some(6), 9))}`                                   |
-|                      | `fullOuterJoin(other)`                                     | 全外连接，保留双方所有 Key，两侧 Value 都使用 `Option`         | `rdd.fullOuterJoin(other)`                                       | `{(1, (Some(2), None)), (3, (Some(4), Some(9))), (3, (Some(6), Some(9)))}` |
-|                      | `subtractByKey(other)`                                     | 删除左侧 RDD 中 Key 出现在右侧 RDD 的记录，只比较 Key          | `rdd.subtractByKey(other)`                                       | `{(1, 2)}`；保留原始左侧记录                                                        |
-| **4. 排序**            | `sortByKey(ascending, numPartitions)`                      | 按 Key 全局排序，可通过隐式 `Ordering[K]` 自定义 Key 顺序     | `rdd.sortByKey(ascending = true, numPartitions = 2)`             | Key 顺序为 `1, 3, 3`；相同 Key 的 Value 顺序无保证，不接受 `partitioner` 参数                |
-|                      | `sortBy(func, ascending, numPartitions)`                   | 按 Value 或函数提取的其他字段全局排序，也支持组合字段                | `rdd.sortBy(_._2, ascending = false)`                            | `[(3, 6), (3, 4), (1, 2)]`；普通 RDD 也可使用                                     |
-|                      | `repartitionAndSortWithinPartitions(partitioner)`          | 按指定分区器重分区，并在每个分区内按 Key 排序                     | `rdd.repartitionAndSortWithinPartitions(new HashPartitioner(2))` | 两个 Key 都是奇数，记录均进入分区 1，分区 0 为空；只保证分区内有序，方向由 `Ordering[K]` 决定                |
-| **5. Value 映射与键值提取** | `mapValues(func)`                                          | 对每条记录的 Value 应用函数，不改变 Key                     | `rdd.mapValues(x => x + 1)`                                      | `{(1, 3), (3, 5), (3, 7)}`；不会合并相同 Key                                      |
-|                      | `flatMapValues(func)`                                      | 将每个 Value 展开为零条或多条记录，每条记录保留原 Key              | `rdd.flatMapValues(x => x to 5)`                                 | `{(1, 2), (1, 3), (1, 4), (1, 5), (3, 4), (3, 5)}`；`6 to 5` 为空             |
-|                      | `keys`                                                     | 提取每条记录的 Key，返回普通 RDD                          | `rdd.keys`                                                       | `{1, 3, 3}`；不去重                                                            |
-|                      | `values`                                                   | 提取每条记录的 Value，返回普通 RDD                        | `rdd.values`                                                     | `{2, 4, 6}`                                                                |
+这里的转化操作我按照分类：聚合、分组、连接、排序，以及 Value 映射与键值提取依次展开，表格汇总下面 3.1～3.5 的转化操作。
 
-> - 除排序示例外，表中的 `{...}` 仅表示包含哪些记录，不代表 RDD 的输出顺序；重复记录不会自动去重。
-> - `reduceByKey`、`foldByKey` 等聚合可先在分区内合并，再跨分区合并；只求和时通常比 `groupByKey().mapValues(_.sum)` 更合适。
-> - 连接时同一 Key 左侧有 M 条、右侧有 N 条，匹配部分会产生 M × N 条记录；外连接中的缺失值用 `Option` 表示。
-> - 下面练习中用于对比的 `reduce()`、`fold()`、`aggregate()`，以及排序小节的 `takeOrdered()`、`top()` 都是 **Action**，不计入这张转化操作表。
+| 分类                   | 函数                                                         | 作用                                            | 示例                                                                     | 结果 / 特点                                                                    |
+| -------------------- | ---------------------------------------------------------- | --------------------------------------------- | ---------------------------------------------------------------------- | -------------------------------------------------------------------------- |
+| **1. 按 Key 聚合**      | `reduceByKey(func)`                                        | 对相同 Key 的 Value 使用同一个函数聚合，无初始值                | `rdd.reduceByKey(_ + _)`                                               | `{(1, 2), (3, 10)}`                                                        |
+|                      | `foldByKey(zeroValue)(func)`                               | 提供与 Value 同类型的零值，对每个 Key 聚合                   | `rdd.foldByKey(0)(_ + _)`                                              | `{(1, 2), (3, 10)}`；零值应为合并函数的单位元                                           |
+|                      | `aggregateByKey(zeroValue)(seqOp, combOp)`                 | 提供初始聚合值，分别定义分区内累加和分区间合并；聚合结果类型可以不同于 Value     | `rdd.aggregateByKey((0, 0))(seqOp, combOp)`                            | `{(1, (2, 1)), (3, (10, 2))}`，Value 为 `(sum, count)`                       |
+|                      | `combineByKey(createCombiner, mergeValue, mergeCombiners)` | 从每个分区中某 Key 的首个 Value 创建聚合器，再累加和合并；也有指定分区器的重载 | `rdd.combineByKey[(Int, Int)](createCombiner, seqOp, combOp)`          | `{(1, (2, 1)), (3, (10, 2))}`；可用 `mapValues` 进一步计算均值                       |
+| **2. 按 Key 分组**      | `groupByKey()`                                             | 将同一 Key 的所有 Value 收集为 `Iterable`，不聚合、不去重      | `rdd.groupByKey()`                                                     | `{(1, [2]), (3, [4, 6])}`；组内顺序无保证                                          |
+|                      | `reduceByKey(func)`（分组与聚合对比）                               | 按 Key 直接聚合，不返回 Value 集合；同一算子也列于聚合分类           | `rdd.reduceByKey((left, right) => math.max(left, right))`              | `{(1, 2), (3, 6)}`；等价于 `groupByKey().mapValues(_.max)` 的结果，可先在分区内合并        |
+|                      | `mapValues(_ => 1).reduceByKey(_ + _)`                     | 先将每条记录转为 1，再统计每个 Key 的记录数                     | `rdd.mapValues(_ => 1).reduceByKey(_ + _)`                             | `{(1, 1), (3, 2)}`；不是对原 Value 求和                                           |
+|                      | `cogroup(other)`                                           | 按 Key 对齐多个 RDD，各来源保留独立的 Value 集合              | `rdd.cogroup(other)`                                                   | `{(1, ([2], [])), (3, ([4, 6], [9]))}`；保留双方 Key 的并集，也支持三个 RDD              |
+| **3. 连接与按 Key 排除**   | `join(other)`                                              | 内连接，仅保留双方都有的 Key，组合两侧 Value                   | `rdd.join(other)`                                                      | `{(3, (4, 9)), (3, (6, 9))}`                                               |
+|                      | `leftOuterJoin(other)`                                     | 左外连接，保留左侧 `rdd` 的全部记录，右侧缺失用 `None` 表示         | `rdd.leftOuterJoin(other)`                                             | `{(1, (2, None)), (3, (4, Some(9))), (3, (6, Some(9)))}`                   |
+|                      | `rightOuterJoin(other)`                                    | 右外连接，保留右侧 `other` 的全部记录，左侧缺失用 `None` 表示       | `rdd.rightOuterJoin(other)`                                            | `{(3, (Some(4), 9)), (3, (Some(6), 9))}`                                   |
+|                      | `fullOuterJoin(other)`                                     | 全外连接，保留双方所有 Key，两侧 Value 都使用 `Option`         | `rdd.fullOuterJoin(other)`                                             | `{(1, (Some(2), None)), (3, (Some(4), Some(9))), (3, (Some(6), Some(9)))}` |
+|                      | `subtractByKey(other)`                                     | 删除左侧 RDD 中 Key 出现在右侧 RDD 的记录，只比较 Key          | `rdd.subtractByKey(other)`                                             | `{(1, 2)}`；保留原始左侧记录                                                        |
+| **4. 排序**            | `sortByKey(ascending, numPartitions)`                      | 按 Key 全局排序，可通过隐式 `Ordering[K]` 自定义 Key 顺序     | `rdd.sortByKey(ascending = true, numPartitions = 2)`                   | Key 顺序为 `1, 3, 3`；相同 Key 的 Value 顺序无保证，不接受 `partitioner` 参数                |
+|                      | `sortBy(func, ascending, numPartitions)`                   | 按 Value 或函数提取的其他字段全局排序，也支持组合字段                | `rdd.sortBy(_._2, ascending = false)`                                  | `[(3, 6), (3, 4), (1, 2)]`；普通 RDD 也可使用                                     |
+|                      | `repartitionAndSortWithinPartitions(partitioner)`          | 按指定分区器重分区，并在每个分区内按 Key 排序                     | `rdd.repartitionAndSortWithinPartitions(new HashPartitioner(2))`       | 两个 Key 都是奇数，记录均进入分区 1，分区 0 为空；只保证分区内有序，方向由 `Ordering[K]` 决定                |
+| **5. Value 映射与键值提取** | `mapValues(func)`                                          | 对每条记录的 Value 应用函数，不改变 Key                     | `rdd.mapValues(x => x + 1)`                                            | `{(1, 3), (3, 5), (3, 7)}`；不会合并相同 Key                                      |
+|                      | `flatMapValues(func)`                                      | 将每个 Value 展开为零条或多条记录，每条记录保留原 Key              | `rdd.flatMapValues(x => x to 5)`                                       | `{(1, 2), (1, 3), (1, 4), (1, 5), (3, 4), (3, 5)}`；`6 to 5` 为空             |
+|                      | `flatMap(func)`                                            | 对完整二元组展开，可改变 Key 或输出类型；普通 RDD 也可使用            | `rdd.flatMap { case (key, value) => (value to 5).map(x => (key, x)) }` | 本例记录内容与上一行相同，但 Key 需自行构造，已有分区器会被丢弃                                         |
+|                      | `keys`                                                     | 提取每条记录的 Key，返回普通 RDD                          | `rdd.keys`                                                             | `{1, 3, 3}`；不去重                                                            |
+|                      | `values`                                                   | 提取每条记录的 Value，返回普通 RDD                        | `rdd.values`                                                           | `{2, 4, 6}`                                                                |
 
 ## 3.1 聚合操作
 
-之前讲解过基础 RDD 上的 `reduce()`、`fold()`、`aggregate()` 等行动操作，Pair RDD 上也有相应的针对键的转化操作。普通 RDD 没有 `combine()`；`combineByKey()` 是更通用的按键聚合接口。
+之前讲解过基础 RDD 上的 `reduce()`、`fold()`、`aggregate()` 等行动操作，Pair RDD 上也有**相应的**针对键的转化操作，这里可以对应着学习。
 
-- 基础 RDD 的 `reduce()`、`fold()`、`aggregate()` 是对**整个 RDD**进行聚合，最终通常得到一个结果；
+- 基础 RDD 的 `reduce()`、`fold()`、`aggregate()` 是对**整个 RDD**进行聚合，最终通常得到一个结果（普通 RDD 没有 `combine()`；）；
 
-- Pair RDD 的 `reduceByKey()`、`foldByKey()`、`aggregateByKey()`、`combineByKey()` 则是按照 **Key 分组**，分别聚合每个 Key 对应的 Value。
+- Pair RDD 的 `reduceByKey()`、`foldByKey()`、`aggregateByKey()`、`combineByKey()` 则是**按照 Key 分组**，分别聚合每个 Key 对应的 Value。
 
 假设有一个 Pair RDD，记录不同商品的销售额
 
@@ -272,9 +307,7 @@ val sales = sc.parallelize(
 )
 ```
 
-以下各小节独立演示，`total`、`result`、`averages` 等变量名会重复使用；配套 Scala 文件用局部作用域隔离这些变量。
-
-通过下面的操作，可以得到总销售额、整体平均值
+先大致看一下不同的转换操作是怎么得到总销售额、整体平均值的
 
 | 操作                                  | 验证结果                             |
 | ----------------------------------- | -------------------------------- |
@@ -340,7 +373,7 @@ val result = sales.values.aggregate((0, 0))(
   (left, right) => (left._1 + right._1, left._2 + right._2)
 )
 
-//average=100/4=25
+//整体平均值：average=100/4=25
 val average = result._1.toDouble / result._2
 
 // [info] aggregate: (sum, count): (100,4)
@@ -354,6 +387,7 @@ val result = sales.aggregateByKey((0, 0))(
   (acc, value) => (acc._1 + value, acc._2 + 1),
   (left, right) => (left._1 + right._1, left._2 + right._2)
 )
+// 分Key得到平均值：
 val averages = result.mapValues {
   case (sum, count) => sum.toDouble / count
 }
@@ -383,30 +417,7 @@ val averages = result.mapValues {
 
 ### combineByKey()
 
-```plain
-reduceByKey : 无零值 + 分区内外使用相同函数
-    ↓ 增加初始值
-foldByKey : 固定零值 + 分区内外使用相同函数
-    ↓ 允许聚合结果与 Value 类型不同，并区分分区内和分区间函数
-aggregateByKey : 固定零值 + 分区内外使用不同函数
-    ↓ 不直接提供固定初始值，而是从每个 Key 的第一个 Value 创建聚合器
-combineByKey : 根据第一个 Value 动态创建聚合器 + 分区内外使用不同函数
-```
-
-总结
-
-| 操作               | 理解                                                                  | 特点                             |
-| ---------------- | ------------------------------------------------------------------- | ------------------------------ |
-| `reduceByKey`    | 对每个 Key 的 Value 使用同一个函数进行聚合                                         | 无初始值，分区内外使用相同函数，输入输出类型相同       |
-| `foldByKey`      | 对每个 Key 的 Value 进行聚合，并提供一个与 Value 同类型的初始值                           | **有固定初始值**，分区内外使用相同函数，输入输出类型相同 |
-| `aggregateByKey` | 为每个 Key 提供初始聚合值，并分别定义分区内聚合`seqOp`和分区间合并`combOp`，聚合结果可以与原 Value 类型不同 | 有固定初始值，**分区内外使用不同函数，输入输出类型不同** |
-| `combineByKey`   | 为每个 Key 从第一个 Value 创建中间聚合器，再定义 Value 如何加入聚合器，以及不同分区的聚合器如何合并         | **有可变初始值**，分区内外使用不同函数，输入输出类型不同 |
-
-`combineByKey` 一共有三个函数，允许你**完全自定义三件事**：
-
-1. `createCombiner`用某个 Key 的第一个 Value 创建中间聚合器，解决**如何为“第一次出现的 Key”创建初始的累加值**
-2. `mergeValue` 在分区内，将后续 Value 合并进中间聚合器，解决**如何在同一个分区内合并值**
-3. `mergeCombiners`  合并不同分区的中间聚合器，解决**如何跨分区合并分区结果**
+`combineByKey` 可以看作是`aggregateByKey`的升级版本，定义如下：
 
 ```scala
 def combineByKey[C](
@@ -415,6 +426,12 @@ def combineByKey[C](
   mergeCombiners: (C, C) => C //shuffle 后的跨分区合并多个相同的Key
 ): RDD[(K, C)]
 ```
+
+它内部一共有三个函数，允许你**完全自定义三件事**：
+
+1. `createCombiner`用某个 Key 的第一个 Value 创建中间聚合器，解决**如何为“第一次出现的 Key”创建初始的累加值**
+2. `mergeValue` 在分区内，将后续 Value 合并进中间聚合器，解决**如何在同一个分区内合并值**
+3. `mergeCombiners` 合并不同分区的中间聚合器，解决**如何跨分区合并分区结果
 
 举例如下
 
@@ -445,67 +462,107 @@ val averages = result.mapValues {
 }
 ```
 
-没错，这是因为这个例子使用combineByKey时使用的初始值刚好和aggregateByKey的(0,0)效果等价，实际上`combineByKey`可以使用更复杂函数来的初始值。
+没错，这是因为这个例子使用`combineByKey`时使用的初始值刚好和`aggregateByKey`的(0,0)效果等价，实际上`combineByKey`可以使用更复杂函数作为初始值。
 
-可以理解成 “aggregateByKey 是 combineByKey 的语法糖，底层完全一样，只是把 createCombiner 封装成了 zeroValue + seqOp。”
+可以理解成 “`aggregateByKey` 是 `combineByKey` 的语法糖，底层完全一样，只是把 `createCombiner` 封装成了 `zeroValue + seqOp`”
+
+### 总结
+
+```plain
+reduceByKey : 无零值 + 分区内外使用相同函数
+    ↓ 增加初始值
+foldByKey : 固定零值 + 分区内外使用相同函数
+    ↓ 允许聚合结果与 Value 类型不同，并区分分区内和分区间函数
+aggregateByKey : 固定零值 + 分区内外使用不同函数
+    ↓ 不直接提供固定初始值，而是从每个 Key 的第一个 Value 创建聚合器
+combineByKey : 根据第一个 Value 动态创建聚合器 + 分区内外使用不同函数
+```
+
+| 操作               | 理解                                                                  | 特点                             |
+| ---------------- | ------------------------------------------------------------------- | ------------------------------ |
+| `reduceByKey`    | 对每个 Key 的 Value 使用同一个函数进行聚合                                         | 无初始值，分区内外使用相同函数，输入输出类型相同       |
+| `foldByKey`      | 对每个 Key 的 Value 进行聚合，并提供一个与 Value 同类型的初始值                           | **有固定初始值**，分区内外使用相同函数，输入输出类型相同 |
+| `aggregateByKey` | 为每个 Key 提供初始聚合值，并分别定义分区内聚合`seqOp`和分区间合并`combOp`，聚合结果可以与原 Value 类型不同 | 有固定初始值，**分区内外使用不同函数，输入输出类型不同** |
+| `combineByKey`   | 为每个 Key 从第一个 Value 创建中间聚合器，再定义 Value 如何加入聚合器，以及不同分区的聚合器如何合并         | **有可变初始值**，分区内外使用不同函数，输入输出类型不同 |
 
 ## 3.2 数据分组
 
 下面的代码详见 [PairRDD_3_2GroupingOperationsApp.scala](https://github.com/Eleanora-lyh/BigDataDemoProjects/blob/main/Spark/ScalaApplicaton/spark-line-count/src/main/scala/com/example/PairRDD_3_2GroupingOperationsApp.scala)
 
-需要注意：上面的聚合需要让同一个 Key 的数据最终参与同一组计算，**但 Spark 不需要先把每个 Key 的所有 Value 完整收集成集合**。通常先在各分区内局部聚合，再通过 Shuffle 在 Executor 端合并同一 Key 的中间结果；只有 `collect()` 等 Action 才把最终结果取回 Driver。
+pairRDD中的分组是`groupByKey()`，如果不仅需要分组还需要聚合则使用 `reduceByKey`
+
+> 需要注意：上面的聚合需要让同一个 Key 的数据最终参与同一组计算，**但 Spark 不需要先把每个 Key 的所有 Value 完整收集到同一个节点**。通常先在各分区内局部聚合，再通过 Shuffle 在 Executor 端合并同一 Key 的中间结果；只有 `collect()` 等 Action 才把最终结果取回 Driver。
 
 ### groupByKey()
 
-`groupByKey()` 才是真正把 Value 分组出来的操作，按 key 收集所有 value，演示重复值保留、组内顺序不保证。
+`groupByKey()` 是真正把 Value 分组出来的操作，它按 key 直接 shuffle 收集对应的 value 到同一个节点，在 reduce 端计算。（重复值会被保留、组内顺序不保证）
 
 ```scala
 val scores = sc.parallelize(
   Seq(("Alice", 80), ("Bob", 70), ("Alice", 90), ("Bob", 70), ("Cindy", 100)),
   numSlices = 2
 )
-val grouped = scores.groupByKey()
-```
-
-返回值类型：
-
-```scala
-RDD[(String, Iterable[Int])]
-```
-
-```scala
+// groupByKey() 返回 RDD[(String, Iterable[Int])]。
+// 再执行 mapValues 求和，groupedTotals 的类型为 RDD[(String, Int)]。
 val groupedTotals = scores
   .groupByKey()
   .mapValues(values => values.sum)
-// 虽然功能一致，但是二者效率不同
-val reducedTotals = scores.reduceByKey(_ + _)
 ```
 
-前者的过程如下
+执行过程如下
 
 ```plain
 所有 Value 经过 Shuffle 
         ↓
-形成 Key → Iterable[Value]：A → [10, 20, 30]; B → [5, 15]
+形成 Key → Iterable[Value]：
+Alice → [80, 90]；Bob → [70, 70]；Cindy → [100]
         ↓
-对 Iterable 求和：A → 60;B → 20
+对 Iterable 求和：
+Alice → 170；Bob → 140；Cindy → 100
+```
+
+### reduceByKey()
+
+`reduceByKey(_ + _)` 与 `groupByKey().mapValues(_.sum)` 得到相同的按 Key 求和结果，但不等同于只执行 `groupByKey()`：前者返回聚合值，后者返回 Value 集合。`reduceByKey` 可以先在分区内局部合并，通常能减少 Shuffle 数据量，无需生成完整的 `Iterable[Value]`。
+
+```scala
+val scores = sc.parallelize(
+  Seq(("Alice", 80), ("Bob", 70), ("Alice", 90), ("Bob", 70), ("Cindy", 100)),
+  numSlices = 2
+)
+val reducedTotals = scores.reduceByKey(_ + _)
+// [(Alice,170), (Bob,140), (Cindy,100)]，展示时按 Key 排序。
+
+val counts = scores.mapValues(_ => 1).reduceByKey(_ + _)
+// [(Alice,2), (Bob,2), (Cindy,1)]
+
+val maxima = scores.reduceByKey((left, right) => math.max(left, right))
+// [(Alice,90), (Bob,70), (Cindy,100)]
 ```
 
 后者的过程如下
 
 ```plain
 分区内先局部聚合
+Partition 0: ("Alice", 80), ("Bob", 70)
+Partition 1: ("Alice", 90), ("Bob", 70), ("Cindy", 100)
         ↓
-Shuffle 局部聚合结果
+局部聚合结果（每个分区中的 Key 恰好各出现一次，因此这里无法减少记录数）
+Partition 0: ("Alice", 80), ("Bob", 70)
+Partition 1: ("Alice", 90), ("Bob", 70), ("Cindy", 100)
         ↓
-分区间继续聚合
+Shuffle 同一 Key 的中间结果，并在目标分区合并
+Alice → 80 + 90 = 170
+Bob   → 70 + 70 = 140
+Cindy → 100
 ```
 
-它不需要生成完整的 `Iterable[Value]`，所以速度更快
+- 求和、最大值 / 最小值等**满足结合律和交换律**、且聚合结果类型与 Value 相同的操作，适合用 `reduceByKey`；计数需先将每条 Value 映射为 1。
+- 需要**拿到某个 Key 的所有原始 Value**，适合用 `groupByKey`；聚合结果类型需要改变时，可使用 `aggregateByKey` 或 `combineByKey`。
 
 ### cogroup()
 
-`groupByKey()` 主要对**一个 Pair RDD**按照 Key 分组。
+`groupByKey()/reduceByKey()` 主要对**一个 Pair RDD**按照 Key 分组。
 
 `cogroup()` 则可以对**多个 Pair RDD**按照 Key 分组，并且分别保留每个 RDD 的 Value 集合。
 
@@ -520,6 +577,7 @@ clubs = [("Alice", "Chess"), ("Alice", "Music"), ("Bob", "Sports"), ("David", "A
 
 ```scala
 val cogrouped: RDD[(String, (Iterable[Int], Iterable[String]))] = scores.cogroup(clubs)
+// 直接写成val cogrouped= scores.cogroup(clubs)就可以，带上类型是方便理解
 ```
 
 输出中每一个Key，都有两组合并后的Value（记录了来自哪个 RDD）
@@ -813,7 +871,7 @@ val takeMax3 = ranked.top(3)(byKey)
 
 只比较 Key 时，相同 Key 的记录先后顺序不保证。配套行动操作示例还使用 `Ordering.Tuple2(Ordering.String, Ordering.Int)`，演示用 Value 作为次级字段获得确定的完整记录顺序。
 
-内部执行逻辑：
+#### 内部执行逻辑复杂度分析
 
 假设总数为N个，需要取出最大的n个元素，一共M个分区
 
@@ -969,6 +1027,55 @@ println(tokens.collect().sorted.toSeq)
 
 > 和 `mapValues()` 一样，`flatMapValues()` 会保留原分区器，但不会去重或合并相同 Key。
 
+### flatMap() 与 flatMapValues() 的区别
+
+`flatMap()` 是普通 RDD 的通用转化操作，不是 Pair RDD 专属算子。对 Pair RDD 调用时，函数接收**完整的 `(Key, Value)`**，可以为每条输入生成零个、一个或多个任意类型的元素。
+
+沿用上面的 `words`，以下两种写法产生相同的键值对记录：
+
+```scala
+// flatMap：自己构造每条输出的 Key 和 Value。
+val tokensByFlatMap = words.flatMap { case (key, text) =>
+  text.split(" ").map(word => (key, word))
+}
+
+// flatMapValues：只处理 Value，自动保留原 Key。
+val tokensByFlatMapValues = words.flatMapValues(_.split(" "))
+
+println(tokensByFlatMap.collect().sorted.toSeq)
+println(tokensByFlatMapValues.collect().sorted.toSeq)
+// 两者均为 [(drink,tea), (fruit,apple), (fruit,banana)]
+```
+
+虽然本例中结果内容相同，两种操作的能力和分区器行为并不相同：
+
+| 对比项       | `flatMap()`       | `flatMapValues()`        |
+| --------- | ----------------- | ------------------------ |
+| 函数输入      | 完整 `(Key, Value)` | Value                    |
+| 输出类型      | 任意类型，可以不是键值对      | 保留原 Key 的键值对，Value 类型可改变 |
+| 每条输入对应的输出 | 零个、一个或多个元素        | 零条、一条或多条键值对              |
+| 是否能改变 Key | 能，由函数决定           | 不能                       |
+| 已有分区器     | 丢弃，即使输出保留原 Key    | 保留                       |
+
+例如只需要单词、不需要分类 Key 时，`flatMap()` 可以直接返回普通 `RDD[String]`：
+
+```scala
+val allWords = words.flatMap { case (_, text) => text.split(" ") }
+println(allWords.collect().sorted.toSeq)
+// [apple,banana,tea]
+```
+
+也可以在展开时重新选择 Key，例如用单词作为 Key、原分类作为 Value：
+
+```scala
+val categoriesByWord = words.flatMap { case (category, text) =>
+  text.split(" ").map(word => (word, category))
+}
+// [(apple,fruit), (banana,fruit), (tea,drink)]
+```
+
+可以将两组操作对应起来理解：**`map()` / `mapValues()` 负责一对一映射，`flatMap()` / `flatMapValues()` 负责零对多展开**。只展开 Value 且需要保留原 Key 时，优先使用 `flatMapValues()`；需要改变 Key 或输出非键值对时，使用 `flatMap()`。
+
 ### keys / values
 
 `keys` 和 `values` 分别提取每条记录的 Key、Value，返回**普通 RDD**，不是 Pair RDD，也不是 Driver 端集合。
@@ -989,13 +1096,14 @@ println(rdd.keys.distinct().collect().sorted.toSeq)
 
 ### 小结
 
-| 操作                | 函数处理的对象           | 每条输入对应的输出      | 是否保留原 Key | 已有分区器 |
-| ----------------- | ----------------- | -------------- | --------- | ----- |
-| `map()`           | 完整 `(Key, Value)` | 一条，输出类型可自定义    | 由函数决定     | 丢弃    |
-| `filter()`        | 完整 `(Key, Value)` | 零条或一条原记录       | 是         | 保留    |
-| `mapValues()`     | Value             | 一条键值对          | 是         | 保留    |
-| `flatMapValues()` | Value             | 零条、一条或多条键值对    | 是         | 保留    |
-| `keys` / `values` | 提取 Key / Value    | 一个 Key / Value | 输出不再是键值对  | 丢弃    |
+| 操作                | 函数处理的对象           | 每条输入对应的输出         | 是否保留原 Key | 已有分区器 |
+| ----------------- | ----------------- | ----------------- | --------- | ----- |
+| `map()`           | 完整 `(Key, Value)` | 一条，输出类型可自定义       | 由函数决定     | 丢弃    |
+| `flatMap()`       | 完整 `(Key, Value)` | 零个、一个或多个元素，类型可自定义 | 由函数决定     | 丢弃    |
+| `filter()`        | 完整 `(Key, Value)` | 零条或一条原记录          | 是         | 保留    |
+| `mapValues()`     | Value             | 一条键值对             | 是         | 保留    |
+| `flatMapValues()` | Value             | 零条、一条或多条键值对       | 是         | 保留    |
+| `keys` / `values` | 提取 Key / Value    | 一个 Key / Value    | 输出不再是键值对  | 丢弃    |
 
 以上都是 Transformation，结果由 `collect()` 等 Action 触发计算。这里在 Driver 上排序只是为了稳定展示内容，不代表这些算子本身会排序；`collect()` 仅适用于本例的小数据。
 
@@ -1017,24 +1125,23 @@ println(rdd.keys.distinct().collect().sorted.toSeq)
 
 # 5、数据分区
 
-下面的代码详见 [PairRDD_5PartitioningOperationsApp.scala](https://github.com/Eleanora-lyh/BigDataDemoProjects/blob/main/Spark/ScalaApplicaton/spark-line-count/src/main/scala/com/example/PairRDD_5PartitioningOperationsApp.scala)
-
 控制数据分布减少网络传输可以极大地提升整体性能。就像单节点的程序为记录集合需要选择合适的数据结构一样，**Spark 程序可以通过一个键函数对元素进行分组，进而控制 RDD 分区方式来减少通信开销**。
 
-但并不是在任何情况都需要分区——比如，如果给定 RDD 只需要被扫描一
-次，我们完全没有必要对其预先进行分区处理。只有数据集需要**多次基于键操作**时（如连接），分区才会有帮助。
+但并不是在任何情况都需要分区——比如，如果给定 RDD 只需要被扫描一次，我们完全没有必要对其预先进行分区处理。只有数据集需要**多次基于键操作**时（如连接），分区才会有帮助。
+
+下面的代码详见 [PairRDD_5PartitioningOperationsApp.scala](https://github.com/Eleanora-lyh/BigDataDemoProjects/blob/main/Spark/ScalaApplicaton/spark-line-count/src/main/scala/com/example/PairRDD_5PartitioningOperationsApp.scala)
 
 ## 5.1 案例引入
 
 案例背景：
 
-一张很大的用户信息表 (UserID, UserInfo)，UserInfo 包含一个该用户所订阅的主题的列表topics。
+- 一张很大的用户信息表 (UserID, UserInfo)，UserInfo 包含一个该用户所订阅的主题的列表topics。
 
-一个小文件记录了过去五分钟内某网站各用户发生的事件: (UserID, LinkInfo) 
+- 一个小文件记录了过去五分钟内某网站各用户发生的事件: (UserID, LinkInfo) 
 
-有这样一个应用，需要周期性地统计用户访问其未订阅主题的页面情况
+有这样一个应用，需要周期性地统计用户访问其未订阅主题的页面情况。
 
-为了不依赖外部 HDFS、SequenceFile 和自定义序列化类型，配套示例使用内存中的同构数据。实际接入文件时，只需将输入替换为已经解析好的 `RDD[(Int, UserInfo)]` 和 `RDD[(Int, LinkInfo)]`。
+我们需要取出未订阅主题却访问了新主题的用户，实现如下
 
 ```scala
 import org.apache.spark.HashPartitioner
@@ -1042,11 +1149,12 @@ import org.apache.spark.rdd.RDD
 
 case class UserInfo(topics: Set[String])
 case class LinkInfo(topic: String, url: String)
-
+// 用户表
 val rawUsers = sc.parallelize(
   Seq((1, UserInfo(Set("spark"))), (2, UserInfo(Set("hive")))),
   numSlices = 2
 )
+// 模拟事件文件
 val firstBatch = sc.parallelize(
   Seq(
     (1, LinkInfo("spark", "/spark")),
@@ -1072,7 +1180,7 @@ def processNewLogs(
 val before = processNewLogs(rawUsers, firstBatch, partitioner) // 1
 ```
 
-第一批只有用户 1 的 Hive 访问属于未订阅主题。用户 99 不在用户表中，会被内连接排除，不能将这类事件误认为已知用户的未订阅访问。
+结论：第一批只有用户 1 的 Hive 访问属于未订阅主题。用户 99 不在用户表中，会被内连接排除，不能将这类事件误认为已知用户的未订阅访问。
 
 这段代码可以正确运行，但是用户数据未预分区时，重复调用 `processNewLogs()` 会重复进行按 Key 的重分区工作：
 
@@ -1543,7 +1651,7 @@ contributions表示的就是**每个目标节点收到的PR值**，结果如下
 
 nextRanks 表示的就是**更新后每个节点的PR值**，结果如下
 
-```plain text
+```plain
 ("A", 0.3333333333333333)
 ("B", 0.19166666666666665)
 ("C", 0.475)
