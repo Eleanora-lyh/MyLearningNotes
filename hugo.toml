@@ -178,6 +178,11 @@ enableGitInfo = true
     lineNumbersInTable = true
   
   [markup.goldmark]
+    [markup.goldmark.extensions.passthrough]
+      enable = true  # 保护公式内容，避免被 Markdown 解析为斜体等格式
+      [markup.goldmark.extensions.passthrough.delimiters]
+        block = [['$$', '$$'], ['\[', '\]']]
+        inline = [['$', '$'], ['\(', '\)']]
     [markup.goldmark.renderer]
       unsafe = true  # 允许渲染原始HTML，解决表格显示问题
   
