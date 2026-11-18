@@ -1,8 +1,61 @@
-# HDFS 写入
+# 一、HDFS 写入
 
 ## 前置概念
 
-### 网络拓扑概念
+### 1.1 RPC
+
+RPC 全称是 Remote Procedure Call，中文叫远程过程调，拆开来看：
+
+- Remote：代码在另一个进程、容器或机器上
+
+- Procedure：函数、方法或操作
+
+- Call：调用它并获得结果
+
+所以 RPC 的本质是：一个程序请求另一个进程执行某个方法，并把执行结果返回。
+
+例如订单服务需要查询用户信息：`var user = await userServiceClient.GetUserAsync(userId);` 代码看起来**像普通方法调用**，但 GetUserAsync 的真正业务逻辑可能运行在另一台机器上的用户服务中。
+
+#### RPC和本地方法调用的区别
+
+本地方法调用： `var result = calculator.Add(10, 20);` 执行过程是：
+
+- 当前进程找到 `Add` 方法；
+- CPU 执行当前进程中的代码；
+- 参数和结果在本机内存中传递；
+- 返回 `30`。
+
+这里真正的 **Add 实现代码在当前程序或者当前程序加载的依赖包**中。
+
+RPC 调用：`var result = await calculatorClient.AddAsync(10, 20);`执行过程是：
+
+- 当前进程调用本地的 `AddAsync` 代理方法；
+- 代理把 `10`、`20` 序列化成网络消息；
+- 消息通过网络发送到远程服务；
+- 远程服务执行真正的 `Add` 方法；
+- 远程服务把 `30` 序列化后发回来；
+- 本地代理将结果反序列化为 `int`；
+- 最终向调用者返回 `30`。
+
+也就是说 RPC 和本地方法调用的区别就在于，内部实现的位置不同，RPC需要作为代理给远程服务发出网络请求，实际的计算过程是在远程服务端。（只是**代码的写法和使用体验**和本地调用相似，不是远程代码被下载到了本机）
+
+### 1.2 网络拓扑 Network Topology
+
+`NameNode` 会把 `DataNode` 按照网络位置组织成一种树形逻辑结构，以/data-center/rack/node的层级为例：
+
+![](./assets/2026-11-18-15-04-08-image.png)
+
+NameNode 根据这个拓扑判断节点之间的“网络距离”，一般来说距离按照从小到大就是，
+
+同一个节点的距离  < 同一个机架中的不同节点的距离  < 不同机架的节点的距离
+
+也就是说：
+
+- 同一个 DataNode 上不需要网络传输
+- 同一机架内传输通常经过机架内部交换机
+- 跨机架传输通常需要经过更上层的网络设备
+
+因此，跨机架传输通常成本更高。
 
 在本地网络中，两个节点被称为“彼此近邻”是什么意思？在海量数据处理中，其主要限制因素是节点之间数据的传输速率——带宽很稀缺。这里的想法是将两个节点间的带宽作为距离的衡量标准。
 
@@ -10,41 +63,17 @@
 
 例如，假设有数据中心 d1 机架 r1 中的节点 n1。该节点可以表示为 /d1/r1/n1。利用这种标记，这里给出四种距离描述。
 
-## 1、Client 请求创建文件
+## 步骤1：Client 请求创建文件，完成元数据的创建
 
-1）应用程序调用类似下面的方法：
-
-```java
-FSDataOutputStream outputStream = fileSystem.create(new Path("/data/test.txt"));
-```
+1）应用程序会调用类似下面的方法向`NameNode`获取元文件（确实很像本地调用）
 
 ```java
-// DistributedFileSystem.java
-public FSDataOutputStream create(Path f, ...) {
-    return new FileSystemLinkResolver<FSDataOutputStream>() {
-        @Override
-        public FSDataOutputStream doCall(...) throws IOException {
-            return dfs.create(getPathName(f), ...);
-        }
-    }.resolve(this, f);
-}
+FSDataOutputStream outputStream = distributedFileSystem.create(new Path("/data/test.txt"));
 ```
 
-2）`DistributedFileSystem` 通过 HDFS Client 与 NameNode 通信，请求在 HDFS 命名空间中创建文件。
+这里的distributedFileSystem就是我们上面说的RPC服务，他向HDFS的 NameNode 发起上传文件到HDFS的请求，实际的执行是在NameNode处完成
 
-3）NameNode 
-
-DFSClient（关键类）
-
-```java
-// DFSClient.java
-public DFSOutputStream create(String src, ...) throws IOException {
-    ...
-    namenode.create(src, masked, clientName, ...);
-}
-```
-
-检查：
+2）`NameNode`检查：
 
 - 父目录是否存在
 - 用户是否有写权限
@@ -52,11 +81,60 @@ public DFSOutputStream create(String src, ...) throws IOException {
 - 文件名是否合法
 - 是否满足配额等限制
 
-4）检查通过后，NameNode 在内存中的 HDFS 命名空间创建文件元数据，并记录相应的编辑日志。
+4）检查通过后，`NameNode` 在内存中的 HDFS 命名空间创建文件元数据，并记录相应的编辑日志。
 
-5）NameNode 返回创建成功，Client 得到一个 `FSDataOutputStream`。
+5）`NameNode` 返回创建成功，Client(应用程序) 得到一个 `FSDataOutputStream`返回值。
 
+## 步骤2：Client 对数据进行 Block 划分
 
+步骤1只是`NameNode` 确认文件可以创建，并HDFS 命名空间创建文件元数据，还没有真正把文件数据写入 `DataNode`
+
+Client 根据文件大小按照一块Block 128 MB切分（HDFS 2.x/3.x 环境默认是 128 MiB）。当需要写入第一个 Block 时，Client 向 NameNode 申请一个新的 Block，并请求为该 Block 分配 `DataNode`（确认上传至哪台服务器）。
+
+这个过程是边读取、边缓存、边写入的
+
+```plain
+应用程序不断写数据
+        ↓
+FSDataOutputStream
+        ↓
+DFSOutputStream
+        ↓
+Packet 缓冲区
+        ↓
+当前 Block 对应的 DataNode Pipeline
+```
+
+## 步骤3：NameNode 选择 DataNode
+
+`NameNode` 根据**网络拓扑和机架感知以及副本机制**为当前 Block 选择副本存放位置，并返回可用的 `DataNode` 地址
+
+`NameNode` 不是简单地随机选择三个 `DataNode`，而是综合考虑：
+
+- 副本数量
+- Client 所在位置
+- DataNode 所属机架
+- DataNode 是否存活
+- DataNode 剩余磁盘空间
+- DataNode 当前负载
+- DataNode 是否进入维护或退役状态
+- DataNode 是否已保存当前 Block 的副本
+- 存储类型要求
+- 集群的副本放置策略
+
+NameNode 返回的通常是一个有顺序的 DataNode 列表，例如：
+
+Plain Text
+
+DN-A → DN-B → DN-C
+
+这个顺序随后用于建立数据 Pipeline。
+
+## 步骤4：
+
+## 步骤5：
+
+## 步骤6：
 
 1. Client客户端发送上传请求，通过RPC与NameNode建立通信，NameNode检查该用户是否有上传权限，以及上传的文件是否在HDFS对应的目录下重名，如果这两者有任意一个不满足，则直接报错，如果两者都满足，则返回给客户端一个可以上传的信息；
 2. Client根据文件的大小进行切分，默认128M一块，切分完成之后给NameNode发送请求第一个block块上传到哪些服务器上；
@@ -69,7 +147,7 @@ public DFSOutputStream create(String src, ...) throws IOException {
 3. 数据被分割成一个个的packet数据包在pipeline上依次传输，在pipeline反向传输中，逐个发送ack（命令正确应答），最终由pipeline中第一个DataNode节点A将pipelineack发送给Client；
 4. 当一个block传输完成之后，Client再次请求NameNode上传第二个block，NameNode重新选择三台DataNode给Client。
 
-# HDFS读流程
+# 二、HDFS读流程
 
 1. Client向NameNode发送RPC请求。请求文件block的位置；
 2. NameNode收到请求之后会检查用户权限以及是否有这个文件，如果都符合，则会视情况返回部分或全部的block列表，对于每个block，NameNode都会返回含有该block副本的DataNode地址；这些返回的DataNode地址，会按照集群拓扑结构得出DataNode与客户端的距离，然后进行排序，排序两个规则：网络拓扑结构中距离 Client 近的排靠前；心跳机制中超时汇报的DataNode状态为STALE，这样的排靠后；
