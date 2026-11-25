@@ -33,6 +33,8 @@ hugo server -D
 
 然后在浏览器中访问 `http://localhost:1313`
 
+`-D` 会包含草稿；如需预览正式发布的内容，请使用 `hugo server`。
+
 ## 📝 创建新文章
 
 使用 Hugo 命令创建新文章：
@@ -139,6 +141,8 @@ description: "文章简介"
 ```
 
 ### 发布文章
+
+`content/posts/` 下的文章默认作为草稿，不会发布。没有 Front Matter 或未设置 `draft` 的文章也遵循此规则；只有显式设置 `draft: false` 才会发布。
 
 1. 在 `content/posts/` 创建或编辑文章
 2. 确保 `draft: false`

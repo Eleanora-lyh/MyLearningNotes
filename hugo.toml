@@ -30,6 +30,13 @@ enableGitInfo = true
   lastmod = [":git", ":fileModTime", ":default"]  # lastmod 使用最后提交时间
   publishDate = [":default"]
 
+# 文章默认作为草稿，仅显式设置 draft: false 时发布。
+[[cascade]]
+  draft = true
+  [cascade.target]
+    path = "/posts/**"
+    kind = "page"
+
 [pagination]
   pagerSize = 10
 
