@@ -1,5 +1,5 @@
 ---
-title: "【十二】Hive执行计划：EXPLAIN 输出与QueryPlan，EXPLAIN常见用法"
+title: "【Hive12】Hive执行计划：EXPLAIN 输出与QueryPlan，EXPLAIN常见用法"
 date: 2026-07-13T18:10:00+08:00
 draft: false
 tags: ["Hive", "EXPLAIN", "QueryPlan", "MapReduce", "CBO"]

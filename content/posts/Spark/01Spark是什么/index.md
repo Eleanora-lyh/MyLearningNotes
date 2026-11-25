@@ -1,5 +1,5 @@
 ---
-title: "【一】Spark 是什么：组件、应用场景与发展简史"
+title: "【Spark01】Spark 是什么：组件、应用场景与发展简史"
 date: 2026-10-13T18:33:19+08:00
 draft: false
 tags: ["Spark", "Spark Core", "Spark SQL", "Spark Streaming", "MLlib", "GraphX"]

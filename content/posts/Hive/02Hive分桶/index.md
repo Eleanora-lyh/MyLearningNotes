@@ -1,5 +1,5 @@
 ---
-title: "【二】Hive 分区与分桶"
+title: "【Hive02】Hive 分区与分桶"
 date: 2026-05-13T20:55:47+08:00
 draft: false
 tags: ["Hive", "Hadoop", "分区", "分桶"]

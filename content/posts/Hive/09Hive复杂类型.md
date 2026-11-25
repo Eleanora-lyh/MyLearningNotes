@@ -1,5 +1,5 @@
 ---
-title: "【九】Hive 复杂数据类型：ARRAY / MAP / STRUCT 与嵌套展开"
+title: "【Hive09】Hive 复杂数据类型：ARRAY / MAP / STRUCT 与嵌套展开"
 date: 2026-05-27T22:59:32+08:00
 draft: false
 tags: ["Hive", "复合类型", "ARRAY", "MAP", "STRUCT", "LATERAL VIEW", "UNNEST"]

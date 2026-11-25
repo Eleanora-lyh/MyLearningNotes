@@ -1,5 +1,5 @@
 ---
-title: "【三】Hive 抽样"
+title: "【Hive03】Hive 抽样"
 date: 2026-05-15T23:10:00+08:00
 draft: false
 tags: ["Hive", "抽样", "TABLESAMPLE", "分桶"]

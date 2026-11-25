@@ -1,5 +1,5 @@
 ---
-title: "[1] Hive Data Types"
+title: "【Hive01】Hive Data Types"
 date: 2026-05-13T22:47:21+08:00
 draft: false
 tags: ["Hive", "Data Types"]

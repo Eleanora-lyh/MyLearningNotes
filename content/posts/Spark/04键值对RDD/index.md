@@ -1,5 +1,5 @@
 ---
-title: "【四】Spark 键值对 RDD：创建、常用操作与数据分区"
+title: "【Spark04】Spark 键值对 RDD：创建、常用操作与数据分区"
 date: 2026-11-04T18:28:26+08:00
 draft: false
 tags: ["Spark", "Pair RDD", "Scala", "Shuffle", "Partitioner"]

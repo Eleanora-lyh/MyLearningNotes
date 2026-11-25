@@ -1,5 +1,5 @@
 ---
-title: "【八】Hive 计算引擎：MapReduce / Tez / Spark 对比与选型"
+title: "【Hive08】Hive 计算引擎：MapReduce / Tez / Spark 对比与选型"
 date: 2026-05-26T21:37:59+08:00
 draft: false
 tags: ["Hive", "计算引擎", "MapReduce", "Tez", "Spark"]

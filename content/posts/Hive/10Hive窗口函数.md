@@ -1,5 +1,5 @@
 ---
-title: "【十】Hive 窗口函数：OVER / PARTITION BY / ORDER BY 与 OLAP 分析"
+title: "【Hive10】Hive 窗口函数：OVER / PARTITION BY / ORDER BY 与 OLAP 分析"
 date: 2026-06-03T22:37:14+08:00
 draft: false
 tags: ["Hive", "窗口函数", "OLAP", "OVER", "PARTITION BY", "ORDER BY", "RANK", "LAG", "LEAD"]

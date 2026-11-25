@@ -1,5 +1,5 @@
 ---
-title: "【四_(1)】Hive/Spark SQL 七种 JOIN 的区别：NULL 匹配规则与结果对比"
+title: "【Hive04_1】Hive/Spark SQL 七种 JOIN 的区别：NULL 匹配规则与结果对比"
 date: 2026-05-18T22:16:40+08:00
 draft: false
 tags: ["HiveSQL", "FULL OUTER JOIN", "CROSS JOIN", "LEFT SEMI JOIN"]

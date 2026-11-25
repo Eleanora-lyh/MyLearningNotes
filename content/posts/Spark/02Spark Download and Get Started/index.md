@@ -1,5 +1,5 @@
 ---
-title: "【二】Spark 下载与入门：环境配置、PySpark 交互与独立应用"
+title: "【Spark02】Spark 下载与入门：环境配置、PySpark 交互与独立应用"
 date: 2026-10-14T17:25:56+08:00
 draft: false
 tags: ["Spark", "PySpark", "Spark Shell", "Scala", "SparkContext", "sbt"]

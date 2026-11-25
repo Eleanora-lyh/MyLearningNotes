@@ -1,5 +1,5 @@
 ---
-title: "【四】HiveSQL 语法大全"
+title: "【Hive04】HiveSQL 语法大全"
 date: 2026-05-17T22:37:02+08:00
 draft: false
 tags: ["Hive", "HiveSQL", "DDL", "DQL", "数据仓库"]

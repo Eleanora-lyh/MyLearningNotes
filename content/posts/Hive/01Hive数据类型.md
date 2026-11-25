@@ -1,5 +1,5 @@
 ---
-title: "【一】Hive数据类型"
+title: "【Hive01】Hive数据类型"
 date: 2026-05-13T22:47:21+08:00
 draft: false
 tags: ["Hive", "数据类型"]   

@@ -1,5 +1,5 @@
 ---
-title: "【三】Spark RDD：基础概念、创建方式与常用操作"
+title: "【Spark03】Spark RDD：基础概念、创建方式与常用操作"
 date: 2026-10-21T21:50:09+08:00
 draft: false
 tags: ["Spark", "RDD", "Scala", "Transformation", "Action", "持久化"]

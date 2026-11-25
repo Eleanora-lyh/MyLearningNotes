@@ -1,5 +1,5 @@
 ---
-title: "【十一】HiveSQL底层执行过程：SQL 编译、任务生成与 YARN 调度流程"
+title: "【Hive11】HiveSQL底层执行过程：SQL 编译、任务生成与 YARN 调度流程"
 date: 2026-06-20T22:18:36+08:00
 draft: false
 tags: ["Hive", "HIVE Driver", "HIVE Excutor", "MapReduce", "YARN"]

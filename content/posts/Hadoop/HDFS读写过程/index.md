@@ -1,5 +1,5 @@
 ---
-title: "HDFS 读写过程：从副本放置到 Pipeline 与数据校验"
+title: "【Hadoop01】HDFS 读写过程：从副本放置到 Pipeline 与数据校验"
 date: 2026-11-24T22:49:35+08:00
 draft: false
 tags: ["Hadoop", "HDFS", "NameNode", "DataNode", "Pipeline", "机架感知"]
