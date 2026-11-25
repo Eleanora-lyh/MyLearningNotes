@@ -514,7 +514,7 @@ Client 通知 NameNode：该文件的所有 Block 已写入完毕，可以完成
 
 ![](./assets/2026-11-24-22-46-42-image.png)
 
-## 步骤1：Client 向 NameNode 请求 Block 位置
+## 步骤1：Client 向 NameNode 请求一批 Block 位置
 
 1）应用程序调用 FileSystem.open() 打开 HDFS 文件，Client 会调用类似下面的方法向`NameNode`发起RPC请求（实际的执行是在`NameNode`处完成），请求文件元数据以及目标读取范围涉及的 Block 位置信息。
 
@@ -538,11 +538,9 @@ DFSClient
 NameNode
 ```
 
-需要注意，客户端请求的不一定是“整个文件所有 Block 的位置”，而可能是：
+需要注意，客户端`getBlockLocations`请求的并不是文件的所有 Block，而是从当前读偏移量开始的一批，默认最多返回 10 个 Block（`dfs.client.read.max.blocks.per.call`，旧版本为 1）
 
-- 文件开头一定范围内的 Block
-- 当前读取范围涉及的 Block
-- 一批提前预取的 Block 位置信息
+读完这批后再发起下一次 RPC 请求后续 Block。所以"单次请求一批 Block"是对的，但"一批"通常不等于"全部"。
 
 ## 步骤2：NameNode 检查并返回 Block Location
 
@@ -586,7 +584,11 @@ Block-3：
 
 只有正常节点都不可用时，才 fallback 到 心跳机制中超时汇报的DataNode状态为STALE的节点。
 
-## 步骤3.1：如果符合短路读取，Client直接读取本地Block
+## 步骤3 Client向DataNode发起读取请求
+
+Client收到NameNode返回的 Block Location 后，DFSInputStream 读一个 Block 时，向对应最优的DataNode 建立一条 TCP 连接；读完关闭（或归还 SocketsCache，默认缓存 16 个 socket、过期时间约 3 秒）。下一个 Block 如果由另一个 DataNode 保存，一定新建连接；即使恰好选中同一台 DN，旧连接通常也已关闭。
+
+### 步骤3.1：如果符合短路读取，Client直接读取本地Block
 
 如果收到的Block所在DataNode恰好和Client是同一个DataNode，同时
 
@@ -602,7 +604,7 @@ Block-3：
 
 就可以使用短路读取 Short-Circuit Local Reads，此时由于Client和待读取的Block在同一个DataNode(同一个机器)，可以直接**本地读取**。避免了Client和DataNode之间使用TCP长连接来传输数据，读取会更快。
 
-## 步骤3.2：如果只能读取远程副本，Client与DataNode 建立数据连接再读取
+### 步骤3.2：如果只能读取远程副本，Client与DataNode 建立数据连接再读取
 
 如果收到的Block所在DataNode和客户端不是同一个DataNode，则使用 `FSDataInputStream` 提供的读取接口，其底层的 `DFSInputStream` 根据当前文件偏移找到对应 Block，并通过 `BlockReader` 与选中的 DataNode 建立数据连接，再读取当前 Block 的数据。
 
@@ -691,7 +693,9 @@ chunk3 → 自己计算 checksum → 与 checksum3 比较
 不一致：认为副本可能损坏
 ```
 
-如果整个 128 MiB Block 只有一个 checksum，必须读完整块才能发现错误；按小 chunk 校验，则能够在读取过程中及时发现损坏。
+Client 边收边校验，Block的所有的chunk都校验后，整个 Block 会被放进 ReaderStrategy 的缓存，供后续 read() 直接取用。
+
+> 如果整个 128 MiB Block 只有一个 checksum，必须读完整块才能发现错误；按小 chunk 校验，则能够在读取过程中及时发现损坏。
 
 ### 检查失败/DataNode 读取失败
 
@@ -705,7 +709,7 @@ chunk3 → 自己计算 checksum → 与 checksum3 比较
 HDFS Client 会尝试：
 
 2. 将当前 DataNode **标记**为当前读取过程中的**失败节点**
-3. 并**切换**使用同一 Block 的另一个 DataNode
+3. 放弃当前这条连接，**切换**使用同一 Block 的另一个 DataNode
 4. **从当前尚未完成的**读取位置**继续读取**
 5. 在数据损坏等情况下，将相关故障信息报告给 NameNode
 
