@@ -1,3 +1,12 @@
+---
+title: "【Spark05】Spark 数据读取与保存：文件格式、文件系统与结构化数据"
+date: 2026-11-27T15:53:46+08:00
+draft: false
+tags: ["Spark", "Spark SQL", "数据读写", "Parquet", "ORC", "JSON", "Hive"]
+categories: ["Spark"]
+description: "梳理 Spark 常见文件格式的读取与保存，对比文本、二进制行式与列式存储，介绍本地文件系统、HDFS 和 S3，以及 Spark SQL 查询 Hive 表、读取 JSON 与管理 Schema 的方式。"
+---
+
 # 1、引入
 
 我们已经学了很多在 Spark 中对已分发的数据执行的操作。到目前为止，所展示的示例都是从本地集合或者普通文件中进行数据读取和保存的。但有时候，数据量可能大到无法放在一台机器中，这时就需要探索别的数据读取和保存的方法了。
@@ -12,7 +21,7 @@ Spark 支持很多种输入输出源。一部分原因是 Spark 本身是基于 
 - **Spark SQL中的结构化数据源**
   第 9 章会介绍 Spark SQL 模块，它针对包括 JSON 和 Apache Hive 在内的结构化数据源，为我们提供了一套更加简洁高效的 API。此处会粗略地介绍一下如何使用 Spark SQL，而大部分细节将留到第 9 章讲解。
 
-- **数据库与键值存储**
+- **数据库与键值存储（暂时搁置）**
   本章还会概述 Spark 自带的库和一些第三方库，它们可以用来连接Cassandra、HBase、Elasticsearch 以及 JDBC 源。这里选择的大多数方法都支持 Spark 所支持的三种编程语言，但是还是有一些库只支持 Java 和 Scala。这种情况我们会专门指出。
 
 # 2、文件格式
@@ -211,19 +220,28 @@ df.write
 
 ### 2.1.2 JSON
 
-JSON 全称：JavaScript Object Notation，是一种轻量级的数据交换格式。与普通 Text 不同，JSON 具有明确的语法结构：
+JSON 全称：JavaScript Object Notation，是一种**半结构化**的文本数据格式（轻量级）。JSON 用明确的语法结构：“字段名 + 字段值” 的方式描述一条记录，比普通 Text 文件更容易表达复杂的数据结构。
+
+例如，下面的 JSON 数据包含两条用户消息记录：
 
 ```json
-{
-  "id": 1,
-  "name": "Tom",
-  "age": 20,
-  "address": {
-    "city": "Beijing",
-    "country": "China"
-  }
-}
+{"user":{"name":"Holden","location":"San Francisco"},"text":"Nice day out today"}
+
+{"user":{"name":"Matei","location":"Berkeley"},"text":"Even nicer here :)"}
 ```
+
+其逻辑结构可以表示为：
+
+```text
+root
+ |-- user（顶层字段）
+ |    |-- name（嵌套字段）
+ |    |-- location（嵌套字段）
+ |
+ |-- text（顶层字段）
+```
+
+每一条记录都包含两个顶层字段：`user`和`text`，其中的 `user.name` 和 `user.location` 属于嵌套字段。
 
 JSON支持 字符串、数字、布尔值、null、数组、对象，因此它能够表达比 CSV 更复杂的数据结构
 
@@ -779,8 +797,6 @@ SequenceFile 主要出现在传统 Hadoop 系统和遗留作业中；ObjectFile 
 
 因为 DataFrame 能够利用 Spark SQL 的优化能力，而 ObjectFile 主要保存序列化对象，不具备同等级别的结构化查询优化能力。
 
-
-
 # 3、文件系统
 
 **文件系统是一套组织、查找和管理文件与目录的机制**，它规定了文件怎么命名、存放和查找，以及如何处理读写、权限等操作。
@@ -807,10 +823,9 @@ SequenceFile 主要出现在传统 Hadoop 系统和遗留作业中；ObjectFile 
 
 不同的文件系统会有不同的**数据存储、程序访问方式、操作权限等**。但对于Spark而言，它可以用**相似**的代码**读写不同的文件系统**。
 
-- Spark 的文件数据源负责按指定格式读写数据，例如把 Parquet 文件解析成表中的行和列。
-- HDFS 根据路径的 URI 和配置选择对应的访问实现，例如通过 S3A 访问 Amazon
-
 > 这是因为 DataSource API 内部通过统一的读写接口封装了**不同的数据源**，而**文件系统的差异**由更底层的 Hadoop FileSystem 通过工厂/SPI 机制处理。
+
+下面我们看一下面对三种不同的存储形式：本地文件系统、自建集群部署的HDFS、云文件存储AmazonS3，Spark都是怎么做的？同时了解一下这三种存储形式的特点。
 
 ## 3.1 区分路径、文件格式、表格式
 
@@ -892,7 +907,7 @@ Bucket（存储桶）
 
 他的Key一般是如下样式（其中的 / 主要用于按照前缀组织和展示对象）
 
-```plain text
+```plain
 sales/year=2026/month=11/a.parquet
 sales/year=2026/month=11/b.parquet
 sales/year=2026/month=12/c.parquet
@@ -900,7 +915,7 @@ sales/year=2026/month=12/c.parquet
 
 控制台可以把它们显示成
 
-```plain text
+```plain
 sales/
 └── year=2026/
     ├── month=11/
@@ -914,7 +929,7 @@ sales/
 
 当把 `s3n://bucket/path-within-bucket` 传给 Spark 读取时，其内部实际是通过 S3A 连接器（最常用的是 S3AFileSystem即 s3a:// 协议）**把类似文件系统的操作转换为 S3 对象 API 请求**。（也就是前文提到的**Hadoop FileSystem 抽象**​ 在起作用）
 
-```plain text
+```plain
 FileSystem (抽象接口)
 └── S3AFileSystem
     ├── 调用 S3 REST API
@@ -938,16 +953,642 @@ FileSystem (抽象接口)
 
 # 4、SparkSQL中的结构化数据
 
-## Apache Hive
+Spark SQL 是在 Spark 1.0 中新加入 Spark 的组件，并快速成为了 Spark 中较受欢迎的操作**结构化和半结构化数据**的方式。
 
-## JSON
+> 结构化数据指的是数据记录都具有一致字段结构的集合
+> 
+> Schema 可以类比为数据库中的表结构定义
 
-# 5、数据库
+**Spark SQL 使用 Schema 为数据赋予类似数据库表的结构**，包括列名、数据类型以及可空性等信息，从而把原本的一条条记录组织成类似数据库表的结构化数据。
 
-## Java数据库连接
+当我们**把一条 SQL 查询给 Spark SQL**，它就对数据源执行查询（选出一些字段或者对字段使用一些函数），然后得到由 Row 对象组成的 RDD，每个 Row 对象表示一条记录。
 
-## Cassandra
+为什么说为数据赋予类似数据库表的结构？
 
-## HBase
+因为**Spark SQL**和**数据库查询结果**的查询结果，本质上都可以抽象为：
 
-## Elasticsearch
+- Schema 描述：列个数、列名、顺序、数据类型、是否可为 null 等信息
+
+- Row 保存：当前记录每一列对应的值。
+
+```plain
+Schema
+  ├── 第 0 列：Id，Int
+  ├── 第 1 列：Name，String
+  └── 第 2 列：Age，Int
+
+Rows
+  ├── [1, "Alice", 20]
+  └── [2, "Bob", 25]
+```
+
+- Java/Scala 可以通过下标或者类型化方法读取字段，例如：
+  
+  - `row.get(0)` 读取第 0 列，返回 Any（或 Object），需要自己转型
+  - `row.getString(0)` 读取第 0 列，并当作 String 返回
+  - `row.getInt(1)` 读取第 1 列，并当作 Int 返回
+
+- Python 中使用row[column_number] 以及 row.column_name 来访问元素。：
+  
+  - `row[0]`
+  - `row["name"]`
+  - `row.name`
+
+## 4.1 和后端之间的联想
+
+看到这里我就突然联想到，后端最底层的数据访问方式。通过下载各个**数据库驱动**+配套的代码就可以**手动连接数据库**，完成表记录列到实体类属性的映射
+
+```plain
+数据库
+  ↓ 数据库驱动 / 网络协议
+ADO.NET Provider
+  ↓
+SqlConnection、SqlCommand
+  ↓
+SqlDataReader / DataTable / DataRow
+  ↓ 手动映射
+User 实体对象
+  ↓
+业务代码
+```
+
+ADO.NET 中使用 `SqlDataReader` 或 `DataRow` 直接读取数据库查询结果。每条记录可以按列序号读取，例如 `reader.GetString(1)` 或 `row[1]`；后端再把这些字段**手动赋值给实体对象**，这属于 ORM 出现之前或绕过 ORM 的底层数据访问与手动映射方式。
+
+真正的 ORM，例如 **Entity Framework** 或 **NHibernate**（内部封装了SQL 生成、对象映射、状态跟踪等），只需要定义一个接收的实体类，就会自动完成数据库列到实体属性的映射：
+
+```csharp
+List<User> users = dbContext.Users
+    .Where(user => user.Age >= 18)
+    .ToList();
+```
+
+同时提供两种访问方式：按位置：`row[1]`、按名称：`row["Name"]`
+
+## 4.2 Spark SQL 与 Apache Hive
+
+### 4.2.1 Apache Hive简介
+
+Apache Hive 是构建在 Hadoop 生态之上的数据仓库工具。它通过**表和分区组织底层数据文件**，并通过 Metastore 管理结构信息，允许用户使用类似 SQL 的 HiveQL（HQL）查询存储在 HDFS、对象存储或其他兼容存储系统中的大规模数据。
+
+传统数据库通常同时负责：
+
+- 存储数据；
+- 管理表结构；
+- 建立索引；
+- 执行 SQL；
+- 维护事务和约束。
+
+而在 Hive 中职责是分开的：
+
+- **HDFS、Amazon S3、Azure Data Lake Storage 等存储系统**负责保存实际数据；
+- **Hive Metastore**负责保存数据库、表、列、分区和数据位置等元数据；
+- **Hive 执行引擎或 Spark SQL**负责读取数据并执行查询。
+
+例如，一张 Hive 表可能具有如下信息：
+
+```text
+表名：users
+列：
+  name STRING
+  age  INT
+数据位置：
+  /warehouse/users/
+文件格式：
+  Parquet
+```
+
+其中，表结构、数据位置和文件格式等信息保存在 Hive Metastore 中；用户数据则以 Parquet、ORC、Text、CSV 等格式存储在对应路径下。
+
+---
+
+如果上面所有的总结都能看懂，就请跳过这里即将介绍的**Hive出现的前情提要**：
+
+回到Hadoop诞生之际，彼时Hadoop的三个核心组件分别是
+
+- **HDFS** 负责 **分布式存储**
+
+- **YARN** 负责 **集群资源管理和应用调度**
+
+- **MapReduce** 负责 **分布式计算模型和执行框架**
+
+早期其计算引擎还只有MapReduce，如果要对 HDFS 中的大规模数据执行分布式计算，开发人员通常需要编写 MapReduce 程序。代码量大，开发和维护成本都很高。
+
+此时Hive闪亮登场，Hive 在MapReduce 程序上面提供了一个 SQL 层，具体来说
+
+- **Hive Metastore**保存表结构、数据路径、文件格式和分区等元数据，使 HDFS 或对象存储中的**数据文件**可以通过数据库和**表的方式**被定位与解释。
+
+- **Hive SQL** 用户可以用操作表的形式表达对数据的计算
+
+- **Hive Driver** 负责执行：SQL 解析、语义分析、查询优化、生成物理执行计划，最终把SQL转换成 MapReduce 任务
+
+```plain
+Hive 生成MapReduce任务计算任务
+        ↓
+执行引擎向 YARN 申请资源
+        ↓
+YARN ResourceManager 选择合适的节点
+        ↓
+目标节点的 NodeManager 启动 Container
+        ↓
+MapReduce Task 在 Container 中运行
+        ↓
+计算进程从本机或远程 DataNode 读取 HDFS Block
+```
+
+> 如果对Hive还不了解，可以看下我之前写的[Hive系列的12篇文章](https://eleanora-lyh.github.io/MyLearningNotes/categories/hive/)，挑选感兴趣的部分查看
+
+### 4.2.2 Spark SQL 为什么能够查询 Hive 表
+
+归功于**Hive Metastore**，它可以把HDFS文件抽象成表，记录着以下信息：
+
+1. **数据库和表名称**
+2. **表的 Schema**
+3. **分区信息**
+4. **数据文件所在位置**
+5. **底层文件格式**
+6. **SerDe 和其他表属性**
+
+此时通过**Hive Metastore**提供文件的元数据信息，使得文件操作可以抽象为表操作，这里对外呈现的表正是Spark SQL期望的结构化数据。
+
+当使用 Spark SQL 查询 Hive 表时，Spark 通常只使用 Hive Metastore 保存的表结构、分区、文件位置、文件格式以及 SerDe 等元数据和兼容信息。**SQL 的解析、优化、物理计划生成与任务执行由 Spark SQL 和 Spark Core 完成，不再由 Hive Driver 将 SQL 转换为 MapReduce 任务。**
+
+### 4.2.3 Hive on Spark
+
+随着Hadoop的发展，其计算引擎`hive.execution.engine`除了`MapReduce`还推出了`spark`和`tez`。此时你可能会有疑问：在 Hive 配置里把执行引擎设为 Spark，即`hive.execution.engine=spark`那么和 Spark SQL有什么区别？
+
+- Hive on Spark 中，SQL 提交给 Hive，**由 Hive Driver 查询 Hive Metastore，完成 SQL 解析、语义分析、查询优化和执行计划生成**，再使用 Spark 作为执行后端运行任务。
+
+- Spark SQL 查询 Hive 表时，SQL 直接提交给 Spark SQL。**Spark SQL 从 Hive Metastore 获取表结构、分区、文件位置和格式等元数据，然后完成 SQL 解析、语义分析、Catalyst 优化、物理计划生成**，最后Spark Core负责Executor 调度。
+
+1、从 Hive 客户端提交 HiveQL，并把执行引擎配置为 Spark
+
+用 `hive` 命令行或 Beeline 连 HiveServer2 执行查询 ，执行链条如下：
+
+```plain
+Beeline客户端 / HiveServer2连接
+   ↓
+HiveQL:SELECT * FROM users
+   ↓
+Hive Driver 解析和优化【区别在这】
+   ↓
+Hive Driver 生成物理执行计划
+   ↓
+选择 Spark 作为执行后端（把物理执行计划翻译为Spark Task）
+   ↓
+Spark 集群执行任务
+```
+
+不过在现代实践中，Hive 查询通常更常见的是 Tez（`hive.execution.engine`的默认值就是tez），而需要 Spark 能力时通常直接使用 Spark SQL，而不是让 Hive 驱动 Spark。
+
+---
+
+2、Spark SQL
+
+用 `spark-sql` 或 Spark 程序里的 `spark.sql()` 执行查询，执行链条如下：
+
+```plain
+用户提交 Spark SQL（spark.sql("SELECT * FROM users")）
+        ↓
+SparkSession 接收 SQL
+        ↓
+解析 SQL 并生成逻辑计划
+        ↓
+从 Catalog / Hive Metastore 获取表元数据
+        ├── Schema
+        ├── 分区信息
+        ├── 文件格式
+        └── 数据路径
+        ↓
+Catalyst Optimizer 优化查询计划
+        ├── 列裁剪
+        ├── 分区裁剪
+        └── 过滤下推
+        ↓
+生成物理执行计划
+        ↓
+Executor 从 HDFS、S3 或 ADLS 读取数据文件
+        ↓
+并行执行过滤、投影、聚合等操作
+        ↓
+生成 DataFrame，也就是 Dataset[Row]
+        ↓
+需要时转换为 Dataset[实体类型]
+```
+
+- Hive 主要提供 Metastore 和表兼容能力；
+- 不经过 Hive Driver 的执行计划,Spark 是 SQL 引擎和计算引擎；
+
+### 4.2.4 Spark SQL和Hive之间的连接入口 SparkSession
+
+早期版本的 Spark SQL 使用`SQLContext`、`HiveContext`（在 `SQLContext` 的基础上增加了 HiveQL、Hive Metastore 和 Hive SerDe 等支持）
+
+从 Spark 2.0 开始，`SQLContext` 和 `HiveContext` 的常用功能被统一到 `SparkSession` 中。因此，现代 Spark 应用通常不再直接创建 `HiveContext`，而是创建启用了 Hive 支持的 `SparkSession`：
+
+```scala
+import org.apache.spark.sql.SparkSession
+
+val spark = SparkSession.builder()
+  .appName("HiveExample")
+  .enableHiveSupport()
+  .getOrCreate()
+```
+
+其中`.enableHiveSupport()`表示为该 `SparkSession` 启用 Hive 相关能力，例如：
+
+- 访问 Hive Metastore；
+- 查询已有 Hive 表；
+- 使用部分 HiveQL 语法；
+- 处理 Hive SerDe 表；
+- 使用 Hive UDF 等兼容能力。
+
+Hive Metastore 只告诉 Spark 数据在什么位置，还要确认分区已经正确注册到 Metastore，同时Spark Executor 还必须具有读取相应数据路径的权限。
+
+### 4.2.5 使用 Scala 查询 Hive 表
+
+```scala
+import org.apache.spark.sql.SparkSession
+
+val spark = SparkSession.builder()
+  .appName("HiveQueryExample")
+  .enableHiveSupport()
+  .getOrCreate()
+
+val usersDF = spark.sql(
+  """
+    |SELECT name, age
+    |FROM users
+    |WHERE age >= 18
+  """.stripMargin
+)
+
+usersDF.show() // usersDF的类型是：DataFrame
+val firstRow = usersDF.first() //查询第一条记录
+
+val name = firstRow.getString(0) //按列位置读取
+val age = firstRow.getInt(1)
+
+val name2 = firstRow.getAs"name" //按列名读取
+val age2 = firstRow.getAs"age"
+```
+
+如果希望像后端 ORM 一样，将查询结果映射成具体类型，可以定义 case class：
+
+```scala
+case class User(name: String, age: Int)
+```
+
+ DataFrame 转换为 `Dataset[User]`，也就是说 `Row("Alice", 20)`就变成了`User("Alice", 20)`
+
+```scala
+import spark.implicits._
+
+val usersDS = spark.sql(
+  """
+    |SELECT name, age
+    |FROM users
+    |WHERE age >= 18
+  """.stripMargin
+).as[User]
+
+val firstUser = usersDS.first()  //查询第一条记录
+val name = user.name //按属性读取
+val age = user.age
+```
+
+可以进行如下类比：
+
+| 数据库后端开发           | Spark SQL                    |
+| ----------------- | ---------------------------- |
+| 数据库表结构            | Hive 表 Schema                |
+| 数据库查询结果集          | DataFrame                    |
+| `DataReader` 当前记录 | `Row`                        |
+| 按列序号读取            | `row.getString(0)`           |
+| 按列名读取             | `row.getAs"name"`            |
+| ORM 实体物化          | DataFrame 转换为 `Dataset[T]`   |
+| 实体类               | Scala case class 或 Java Bean |
+
+这种类比有助于理解数据映射，但两者的执行方式不同：
+
+- ORM 通常让远程关系型数据库执行 SQL，再将结果映射为单机应用中的实体对象；
+- Spark SQL 会生成分布式执行计划，由多个 Executor 并行处理数据；
+- Spark DataFrame 通常代表一个尚未执行的分布式计算计划，而不仅仅是一份已经加载到本地内存中的查询结果。
+
+## 4.3 JSON
+
+JSON的定义详见上面的 2.1.2 JSON
+
+我们知道Spark SQL 可以解析**结构化和半结构化数据**，而JSON恰好就是一种**半结构化**的文本数据格式。
+
+---
+
+### 4.3.1 Spark 读取 JSON 的基本原理
+
+Spark 通过数据源 API 将**半结构化**的文本文件，**转换成结构化**的 `Catalyst InternalRow`，最终构建成 `DataFrame`。具体执行过程以下：
+
+```text
+用户提交读取请求（spark.read.json("path") 或 spark.read.schema(...).json("path")）
+        ↓
+DataFrameReader 接收请求并路由至 JSON 数据源
+        ↓
+确定 Schema 与数据结构
+        ├── 显式指定：直接使用用户定义的 StructType，零推断开销
+        └── 推断模式：采样 JSON 数据（默认前 100 行），根据字段和值逐字段生成 StructType
+        ↓
+JsonDataSource 调度文件读取
+        ├── 通过 Hadoop FileSystem 发现并列出文件
+        └── 根据文件大小切分 InputSplit，分配至各 Executor 并行读取
+        ↓
+Executor 使用 Jackson 流式 API 解析 JSON 记录
+        ↓
+将解析结果映射并转换为 Catalyst InternalRow（UnsafeRow）
+        ↓
+构建 DataFrame（即 Dataset[Row]），并绑定最终 Schema
+        ↓
+允许用户使用 DataFrame API / Spark SQL 查询字段
+```
+
+---
+
+### 4.3.2 使用 Spark 读取 JSON 文件
+
+读取后会将数据转换为 DataFrame，即一个带有字段名称和字段类型的分布式数据集合，同时使用`DataFrame API`能够识别其中的字段。
+
+```scala
+val tweets = spark.read.json("tweets.json")
+tweets.printSchema() //Schema 描述每个字段的名称、类型以及是否允许null
+tweets.show(false)
+
+val tweets2 = spark.read
+  .format("json")
+  .load("tweets.json")
+tweets.firstRow()
+
+// 使用 DataFrame API 查询用户名和消息内容
+val get_username_text1 = tweets.select(
+  col("user.name").alias("username"),
+  col("text")
+)
+
+// 使用字符串形式指定列名
+val get_username_text1 = tweets.select(
+  "user.name",
+  "text"
+)
+```
+
+如果希望使用 SQL 查询，需要先把 DataFrame 注册为临时视图：
+
+```scala
+tweets.createOrReplaceTempView("tweets")
+
+val results = spark.sql("""
+  SELECT
+    user.name AS username,
+    text
+  FROM tweets
+""")
+
+results.show(false)
+```
+
+临时视图 `tweets` 只存在于当前 `SparkSession` 中，通常不会被永久保存到 Hive Metastore，它主要是在当前 Spark 会话中，为这个 DataFrame 注册一个可以被 SQL 引用的名称。
+
+因此，整个查询过程是：
+
+```text
+读取 JSON
+    ↓
+生成 DataFrame
+    ↓
+注册临时视图 tweets
+    ↓
+执行 Spark SQL
+    ↓
+返回新的 DataFrame
+```
+
+### 4.3.3 Schema的自动推断/显式指定
+
+当使用以下方式读取 JSON 时：
+
+```scala
+val tweets = spark.read.json("tweets.json")
+tweets.printSchema() // 查看 Spark 推断出的 Schema
+```
+
+如果没有显式提供 Schema，**Spark 会根据实际数据推断字段名称和字段类型**。
+
+```plain
+root
+ |-- text: string (nullable = true)
+ |-- user: struct (nullable = true)
+ |    |-- location: string (nullable = true)
+ |    |-- name: string (nullable = true)
+```
+
+Spark 不保证 Schema 中字段的显示顺序一定与 JSON 原文中的字段顺序完全一致。因此，程序通常应该**通过字段名访问数据，而不要依赖字段所在的位置**。
+
+这种方式的优点是：编写代码简单、适合数据探索、不需要提前声明全部字段、可以自动识别嵌套结构。
+
+但是，它也有几个问题：
+
+- 需要额外分析数据：Spark 必须读取和分析 JSON 数据，才能确定字段类型。对于大规模文件，这会增加额外开销。
+
+- 字段类型可能不稳定：比如有些记录中的 `id` 是整数，另一些记录中的 `id` 是字符串。Spark 必须寻找能够兼容这些值的字段类型，这可能导致推断结果与预期不同
+
+- 容易受到脏数据影响：如果少量记录中的字段类型异常，也可能影响整个字段的推断结果。
+
+**因此，在生产环境中，通常更推荐显式定义 Schema**，显式定义时要根据不同的情况选择不同的实现。
+
+1、**简单扁平结构**（如 `students.json`）使用 **字符串 DSL** `.schema("id LONG, name STRING, score DOUBLE")`
+
+```json
+{"id":1,"name":"Alice","score":90}
+{"id":2,"name":"Bob, Jr.","score":85}
+{"id":3,"name":"李 \"雷\"","score":95}
+```
+
+声明式（Declarative）​ 的简写方式，本质上是第二种方式的语法糖。
+
+```scala
+val json = spark.read.json("input/json/students.json")
+
+//生产环境通常更推荐显式指定 Schema
+val json2 = spark.read
+  .schema("id LONG, name STRING, score DOUBLE")
+  .json("input/json/students.json")
+
+// 保存为 JSON 文件目录。
+json.write.json("output/json")
+```
+
+2、**复杂嵌套结构**（如 `tweets.json`、埋点日志）使用**StructType API**
+
+```json
+{"user":{"name":"Holden","location":"San Francisco"},"text":"Nice day out today"}
+{"user":{"name":"Matei","location":"Berkeley"},"text":"Even nicer here :)"}
+```
+
+`StructType API` 通过**编程式的定义方式**，可以精细控制每一个细节，比如：nullable 属性、Metadata数据（为字段添加自定义元数据）、复杂类型（轻松定义多层嵌套）
+
+```scala
+import org.apache.spark.sql.types._
+
+val tweetSchema = StructType(Seq(
+  StructField(
+    "user",
+    StructType(Seq(
+      StructField("name", StringType, nullable = true),
+      StructField("location", StringType, nullable = true)
+    )),
+    nullable = true
+  ),
+  StructField("text", StringType, nullable = true)
+))
+
+val tweets = spark.read
+  .schema(tweetSchema)
+  .json("tweets.json")
+```
+
+字符串 DSL 虽然也能定义简单的 `STRUCT` 和 `ARRAY`，但在表达极度复杂的 Schema 时，不仅写起来痛苦，而且很容易因为拼写错误导致运行时才报错。
+
+```scala
+.schema("user STRUCT<name: STRING, location: STRING>, text STRING")
+```
+
+3、**超复杂 Schema（如 Hive 表迁移）**，从已有表读取`spark.table("db.table").schema`
+
+```scala
+// 获取 Hive 表 Schema
+val sourceSchema = spark.table("db.old_hive_table").schema
+
+// 创建新表时直接复用
+spark.sql(s"""
+  CREATE TABLE db.new_iceberg_table
+  USING iceberg
+  AS SELECT * FROM db.old_hive_table WHERE 1=0
+""") // 上面只是建表结构
+
+// 或者直接通过 DataFrame 写
+val emptyDF = spark.createDataFrame(spark.sparkContext.emptyRDD[Row], sourceSchema)
+emptyDF.write.saveAsTable("db.new_iceberg_table")
+```
+
+---
+
+### 4.3.4 解析模式.Option
+
+当 JSON 文件包含格式错误记录、无法正确解析的记录时，不同的解析模式对这样的记录处理不同。JSON 文件如下：
+
+```text
+{"id":1,"name":"Alice"}
+this is not json
+{"id":3,"name":"Charlie"}
+```
+
+Spark 读取 JSON 时常见的解析模式包括：
+
+- 默认模式 PERMISSIVE：Spark 尽可能保留可以解析的数据，并将格式错误的内容放入损坏记录字段中
+  
+  ```scala
+  val data = spark.read
+    .option("mode", "PERMISSIVE")
+    .json("input.json")
+  ```
+
+- 忽略 DROPMALFORMED：静默丢失数据，因此生产环境中需要谨慎使用。
+  
+  ```scala
+  val data = spark.read
+    .option("mode", "DROPMALFORMED")
+    .json("input.json")
+  ```
+
+- 立即失败 FAILFAST：只要发现格式错误的记录，读取任务就立即失败
+  
+  ```scala
+  val data = spark.read
+    .option("mode", "FAILFAST")
+    .json("input.json")
+  ```
+
+如果业务强调数据完整性，并且不允许静默忽略异常数据，可以使用 `FAILFAST`。如果业务需要保留异常记录以便后续排查，则可以使用 `PERMISSIVE`，并将错误记录单独输出到隔离目录。
+
+---
+
+### 4.3.5 JSON 格式的优缺点
+
+**优点**
+
+- **可读性较好**， JSON 是文本格式，开发者可以直接打开文件查看数据内容。
+
+- **支持复杂结构**：JSON 支持对象、数组和嵌套字段，适合表达 API 返回值、事件数据和日志数据。
+
+- **字段具有明确名称**： 与普通 Text 文件相比，JSON 不需要依赖固定的字段位置。
+
+- **语言和平台无关**：Java、Scala、Python、JavaScript、C# 等语言都能方便地处理 JSON。
+
+- **适合数据交换**：JSON 广泛用于 REST API、消息系统、配置文件和事件传输。
+
+**缺点**
+
+- **存储空间较大**： 每条记录通常都会重复保存字段名。如name`和`age` 会在每条记录中重复出现。
+  
+  ```json
+  {"name":"Alice","age":30}
+  {"name":"Bob","age":28}
+  ```
+
+- **解析开销较高**： JSON 是文本格式。Spark 读取时需要进行文本解析和类型转换。
+
+- **Schema 不够严格**：不同记录可能缺少字段，也可能使用不同的数据类型。
+
+- **查询效率通常低于 Parquet 和 ORC**： JSON 缺少高效的列式存储、列裁剪和统计信息等优化能力。
+
+- **不适合作为大规模分析数据的长期存储格式**：如果数据需要被反复查询和聚合，通常应该将 JSON 转换为 Parquet、ORC 或使用 Delta Lake、Apache Iceberg、Apache Hudi 等表格式进行管理。
+
+---
+
+### 4.3.6 JSON 在 Spark 中的典型使用场景
+
+JSON 比较适合：
+
+- REST API 返回数据；
+
+- Kafka 等消息系统中的事件数据；
+
+- Web 和应用程序日志；
+
+- 半结构化原始数据；
+
+- 系统之间的数据交换；
+
+- 数据湖的 Raw 或 Bronze 层；
+
+- 临时调试和数据检查。
+
+JSON 通常不适合：
+
+- 大规模分析结果的长期存储；
+
+- 需要频繁执行列式查询的数据；
+
+- 对存储空间和扫描速度要求较高的数据；
+
+- 需要严格 Schema 管理的核心业务数据。
+
+一种常见的数据处理方式是：把 JSON 经常作为数据进入系统时的交换格式，而 Parquet、ORC 等列式格式更适合作为分析阶段的存储格式。
+
+```text
+JSON 原始数据
+    ↓
+Spark 读取并解析
+    ↓
+清洗、校验和结构化
+    ↓
+转换为 Parquet
+或写入 Delta Lake / Iceberg / Hudi 表
+    ↓
+用于后续分析和聚合
+```
