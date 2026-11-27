@@ -1592,3 +1592,110 @@ Spark 读取并解析
     ↓
 用于后续分析和聚合
 ```
+
+# 5、数据库
+
+这部分还没有写完，先搁置，后面遇到再补充上。
+
+第四小节将的都是spark如何与当前集群的分布式存储连接并使用，此外，Spark 还可以连接外部数据库/数据存储系统
+
+| 类型                       | 数据库/系统                             | 主要用途                        | 范围               | Spark 推荐连接方式                                 |
+| ------------------------ | ---------------------------------- | --------------------------- | ---------------- | -------------------------------------------- |
+| 关系型数据库                   | MySQL、PostgreSQL、SQL Server、Oracle | 传统的表结构数据库，支持 SQL、事务和表关联     | 最常见              | Spark SQL JDBC Data Source                   |
+| 分布式宽列NoSQL数据库            | Cassandra                          | 海量数据、高吞吐写入、高可用和跨数据中心部署      | 场景较专门            | Spark Cassandra Connector，以 DataFrame API 为主 |
+| 基于 HDFS 的分布式宽列 NoSQL 数据库 | HBase                              | 海量稀疏数据的 RowKey 查询、随机读写和版本管理 | 主要见于传统 Hadoop 平台 | HBase Spark Connector、HBase Client、Bulk Load |
+| 分布式搜索与分析引擎               | Elasticsearch                      | 全文搜索、日志检索、倒排索引和聚合分析         | 非事务型数据库          | Elasticsearch-Hadoop Connector               |
+
+## 5.1 关系型数据库
+
+Spark 可以通过对应的 JDBC Driver 连接关系型数据库：MySQL、PostgreSQL、Microsoft SQL Server、Oracle、DB2、Teradata
+
+适合的场景包括：
+
+- 从业务数据库批量抽取数据
+
+- 将数据库数据导入 Data Lake
+
+- Spark 清洗、聚合后将结果写回数据库
+
+- 将数据库表和 Parquet、Delta 等数据进行关联
+
+```scala
+val df = spark.read
+  .format("jdbc")
+  .option("url", "jdbc:mysql://server:3306/test")
+  .option("dbtable", "orders")
+  .option("user", "username")
+  .option("password", "password")
+  .option("driver", "com.mysql.cj.jdbc.Driver")
+  .load()
+```
+
+## 5.2 分布式宽列数据库 Cassandra
+
+Cassandra 是一种去中心化的分布式 NoSQL 数据库，擅长：
+
+- 高并发写入
+- 水平扩展
+- 多节点高可用
+- 跨数据中心部署
+- 根据预先设计的 Key 和查询模式访问数据
+
+它不擅长像关系型数据库那样随意执行复杂 Join、外键约束和多表事务。因此，Cassandra 通常需要根据查询方式提前设计表结构。
+
+Spark 通过 **Spark Cassandra Connector** 读取和写入 Cassandra。现代连接器支持 RDD、DataFrame 和 Dataset；
+
+适合的场景包括：
+
+- IoT 数据
+- 用户事件
+- 时序记录
+- 大规模写入
+- 跨区域高可用服务
+
+## 5.2 HBase
+
+HBase 是构建在 HDFS 上的分布式宽列数据库。
+
+可以简单理解为：
+
+- **HDFS** 负责保存底层文件和数据块
+- **HBase** 在 HDFS 之上提供按 RowKey 查询和随机读写能力
+
+HBase 适合：
+
+- 海量稀疏数据
+- 根据 RowKey 快速查询
+- 用户画像
+- 时序数据
+- 事件和计数器
+- 需要随机读写的 Hadoop 数据
+
+## 5.3 Elasticsearch
+
+Elasticsearch 严格来说不是传统关系型数据库，而是一个分布式的搜索与分析引擎。
+
+它主要擅长：
+
+- 全文搜索
+- 模糊匹配
+- 日志检索
+- 多条件过滤
+- 聚合统计
+- 近实时查询
+
+例如，MySQL 更适合根据确定的主键查询一条订单记录；Elasticsearch 更适合搜索“标题或正文中包含 Spark 的文档”，再根据相关性、时间和分类进行排序与聚合。
+
+Spark 通常通过 **Elasticsearch-Hadoop Connector** 将 DataFrame 或 RDD 读写到 Elasticsearch。该连接器目前仍提供专门的 Spark 集成支持。
+
+常见流程是：
+
+```Plain
+日志或业务数据
+    ↓
+Spark 清洗、转换、聚合
+    ↓
+Elasticsearch 建立索引
+    ↓
+Kibana 或搜索接口进行查询
+```
